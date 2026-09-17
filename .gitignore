@@ -1,0 +1,12 @@
+cwru_raw/
+jnu_raw/
+*.mat
+*.csv
+*.docx
+*.pdf
+*.png
+*.log
+pdf_preview/
+legacy/
+__pycache__/
+*.pyc
