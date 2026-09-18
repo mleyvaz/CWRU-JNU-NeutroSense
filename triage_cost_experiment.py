@@ -8,18 +8,24 @@ same proportion but RANDOMLY rather than using I2_hat -- i.e., isolating
 whether I2_hat specifically, not just "sometimes using a cheaper option",
 drives any savings.
 
-REVISION NOTE: a first version of this experiment defined AUDIT as a flat,
-always-successful cheap action, which made "audit everything" the trivial
-global optimum whenever C_audit < C_review, regardless of I1_hat or
-I2_hat -- a degenerate result that did not test the framework at all. This
-version instead ties AUDIT's SUCCESS PROBABILITY to I2_hat: audits
-automated, lightweight cross-checks are assumed more likely to resolve a
-flagged case correctly when the base learners already agree (low I2_hat)
-than when they genuinely disagree (high I2_hat), which requires human
-judgment to adjudicate. This is a stated, illustrative modeling assumption,
-not a measured quantity -- the point is to test whether, GIVEN this kind of
-asymmetry (audit is unreliable specifically where models disagree), routing
-by I2_hat captures it better than routing at random.
+REVISION NOTE (6th round): a first version of this experiment defined AUDIT
+as a flat, always-successful cheap action, which made "audit everything"
+the trivial global optimum whenever C_audit < C_review, regardless of
+I1_hat or I2_hat -- a degenerate result that did not test the framework at
+all. That version instead tied AUDIT's SUCCESS PROBABILITY to I2_hat, this
+time correctly acknowledging it as a stated, illustrative modeling
+assumption, not a measured quantity.
+
+REVISION NOTE (7th round, terminology fix): an external review correctly
+pointed out that the median split used below (I2_hat <= median WITHIN the
+flagged, high-entropy subset) is NOT the same as full 3-of-3 base-learner
+UNANIMITY, and that calling it "models agree" vs. "models disagree" was
+imprecise. Verified directly against the data: of 2,929 flagged instances,
+only 43 are truly unanimous (I2_hat=0); the "lower-disagreement half"
+(1,997 instances) is 43 unanimous plus 1,954 with exactly 2-of-3 agreement,
+and the "higher-disagreement half" (932 instances) is 907 with 1-of-3
+agreement plus 25 with 0-of-3 (full disagreement). All labels and comments
+below now say "lower/higher-disagreement half", not "agree"/"disagree".
 
 Population: instances FLAGGED for intervention by I1_hat alone (I1_hat >
 tau1, the same "ambiguous signal" criterion a single-score policy would
@@ -36,11 +42,12 @@ Policies compared, all applied to the SAME flagged set (I1_hat > tau1):
                     is a random permutation (does not use I2_hat) -- control
                     condition isolating whether I2_hat's specific groupings
                     matter, not just "using cheaper audit sometimes".
-  I2-SPLIT         : flagged instances with I2_hat <= tau2 (base learners
-                    mostly agree) -> AUDIT (cost C_audit, succeeds with
-                    probability p_audit_agree); flagged instances with
-                    I2_hat > tau2 (base learners disagree) -> REVIEW (cost
-                    C_review, always resolves).
+  I2-SPLIT         : flagged instances with I2_hat <= tau2 (lower-disagreement
+                    half, mostly 2-of-3 agreement) -> AUDIT (cost C_audit,
+                    succeeds with probability p_audit_low); flagged instances
+                    with I2_hat > tau2 (higher-disagreement half, 1-of-3 or
+                    0-of-3 agreement) -> REVIEW (cost C_review, always
+                    resolves).
 For AUDIT, if it does not succeed (probability 1-p_audit_*), the case is
 NOT corrected: it still costs C_audit (the audit attempt itself), plus
 C_FN if the underlying ensemble prediction for that instance was actually
@@ -65,19 +72,6 @@ OUT = os.path.dirname(os.path.abspath(__file__))
 
 def expected_cost_all_review(n_flagged, c_review):
     return n_flagged * c_review
-
-
-def expected_cost_split(is_low_i2_group, errors_flagged, c_audit, c_review, p_audit_success):
-    """is_low_i2_group: boolean array (True = assigned to AUDIT for this policy)."""
-    audit_mask = is_low_i2_group
-    review_mask = ~is_low_i2_group
-    # AUDIT group: pay C_audit always; pay C_FN_extra (handled by caller via errors) if audit fails AND instance was an error.
-    n_audit = audit_mask.sum()
-    n_review = review_mask.sum()
-    audit_errors = errors_flagged[audit_mask].sum()
-    cost_audit = n_audit * c_audit + (1 - p_audit_success) * audit_errors * C_FN_GLOBAL[0]
-    cost_review = n_review * c_review
-    return cost_audit + cost_review, n_audit, n_review, audit_errors
 
 
 if __name__ == "__main__":
@@ -117,53 +111,75 @@ if __name__ == "__main__":
           f"({n_flagged/len(entropy)*100:.1f}%), error rate among flagged = {errors_flagged.mean()*100:.1f}%")
 
     is_low_i2 = vote_dis_flagged <= np.median(vote_dis_flagged)
-    print(f"Within flagged set: {is_low_i2.sum()} have I2_hat <= median (models mostly agree), "
-          f"{(~is_low_i2).sum()} have I2_hat > median (models disagree)")
-    print(f"  Error rate | low I2 (candidates for cheap audit):  {errors_flagged[is_low_i2].mean()*100:.1f}%")
-    print(f"  Error rate | high I2 (routed to full review):      {errors_flagged[~is_low_i2].mean()*100:.1f}%")
+    # IMPORTANT (fixed after 7th adversarial round): "I2_hat <= median WITHIN the
+    # already-flagged, high-entropy subset" is NOT the same as full 3-of-3 base-learner
+    # unanimity. Verified directly (not just asserted): of the n_flagged instances,
+    # only 43 are truly unanimous; the "low I2" bucket below is 1,997 instances, of
+    # which 43 are unanimous (3/3) and 1,954 have exactly 2-of-3 agreement. The "high
+    # I2" bucket (932) is 907 with 1-of-3 agreement and 25 with 0-of-3 (full disagreement).
+    # For reference, over the WHOLE test set (not just flagged), true unanimity (3/3) is
+    # 1,655/5,859 = 28.2% of instances with a 28.7% error rate, versus 71.4% error rate
+    # among the 4,204 non-unanimous instances -- consistent with Section 4.5 of the
+    # manuscript. Do not describe the flagged-set median split below as "agree" vs.
+    # "disagree"; it is a relative low-vs-high split on a continuous-looking but
+    # actually 4-valued score, mostly contrasting 2-of-3 agreement against 1-of-3/0-of-3.
+    n_unanimous_flagged = (vote_dis_flagged == 0).sum()
+    print(f"Within flagged set: true unanimity (I2_hat=0, 3/3 agree) = {n_unanimous_flagged} of {n_flagged} "
+          f"({n_unanimous_flagged/n_flagged*100:.1f}%) -- most flagged instances are NOT unanimous either way.")
+    print(f"Within flagged set: {is_low_i2.sum()} have I2_hat <= median (lower-disagreement half: "
+          f"mostly 2-of-3 agreement, only {n_unanimous_flagged} of these are truly unanimous), "
+          f"{(~is_low_i2).sum()} have I2_hat > median (higher-disagreement half: 1-of-3 or 0-of-3 agreement)")
+    print(f"  Error rate | lower-disagreement half (candidates for cheap audit): {errors_flagged[is_low_i2].mean()*100:.1f}%")
+    print(f"  Error rate | higher-disagreement half (routed to full review):     {errors_flagged[~is_low_i2].mean()*100:.1f}%")
+    print(f"  For reference, over the FULL test set: unanimous (3/3) error rate = "
+          f"{errors[vote_dis==0].mean()*100:.1f}% (N={int((vote_dis==0).sum())}), "
+          f"non-unanimous error rate = {errors[vote_dis>0].mean()*100:.1f}% (N={int((vote_dis>0).sum())})")
 
     scenarios = [
         # (name, C_review, C_audit, C_FN, p_audit_success_low_I2, p_audit_success_high_I2)
-        ("S1: audit fairly reliable when models agree", 5, 1, 15, 0.90, 0.90),
-        ("S2: audit much less reliable under disagreement", 5, 1, 15, 0.90, 0.30),
-        ("S3: same as S2, cheaper audit",                  5, 1, 15, 0.95, 0.30),
-        ("S4: no reliability gap (control)",                5, 1, 15, 0.70, 0.70),
+        ("S1: audit equally reliable in both I2 halves",     5, 1, 15, 0.90, 0.90),
+        ("S2: audit much less reliable in high-I2 half",     5, 1, 15, 0.90, 0.30),
+        ("S3: same as S2, MORE reliable in low-I2 half too", 5, 1, 15, 0.95, 0.30),
+        ("S4: no reliability gap (control)",                 5, 1, 15, 0.70, 0.70),
     ]
 
-    rng = np.random.RandomState(42)
-    print(f"\n{'Scenario':46s} {'ALL-REVIEW':>12s} {'RANDOM-SPLIT':>14s} {'I2-SPLIT':>10s} {'Savings vs review':>18s} {'Savings vs random':>18s}")
+    erg_low = errors_flagged[is_low_i2].sum()
+    erg_high = errors_flagged[~is_low_i2].sum()
+    n_audit_target = int(is_low_i2.sum())
+
+    print(f"\n{'Scenario':46s} {'ALL-REVIEW':>12s} {'AUDIT-ALL(opt)':>15s} {'AUDIT-ALL(pes)':>15s} {'RANDOM-SPLIT':>14s} {'I2-SPLIT':>10s} {'Sav.vs review':>14s} {'Sav.vs random':>14s}")
     for name, c_review, c_audit, c_fn, p_low, p_high in scenarios:
-        C_FN_GLOBAL = [c_fn]
         cost_all_review = expected_cost_all_review(n_flagged, c_review)
 
         # I2-SPLIT: audit success probability depends on which I2 group (this IS the mechanism being tested)
-        cost_i2split_audit = is_low_i2.sum() * c_audit + (1 - p_low) * errors_flagged[is_low_i2].sum() * c_fn
+        cost_i2split_audit = is_low_i2.sum() * c_audit + (1 - p_low) * erg_low * c_fn
         cost_i2split_review = (~is_low_i2).sum() * c_review
         cost_i2split = cost_i2split_audit + cost_i2split_review
 
-        # RANDOM-SPLIT control: same proportion audited, but WHICH instances are audited is random,
-        # so audit success probability is the flagged-set AVERAGE of the two group rates, weighted by
-        # how many of each true I2 group land in the (randomly chosen) audit bucket -- averaged over
-        # many random permutations for a stable expectation.
-        n_audit_target = is_low_i2.sum()
-        random_costs = []
-        for _ in range(2000):
-            perm = rng.permutation(n_flagged)
-            audit_idx = perm[:n_audit_target]
-            audit_mask = np.zeros(n_flagged, dtype=bool)
-            audit_mask[audit_idx] = True
-            # success probability for each randomly-audited instance depends on ITS OWN true I2 group
-            p_success_per_instance = np.where(is_low_i2[audit_mask], p_low, p_high)
-            fail_mask = rng.random_sample(audit_mask.sum()) > p_success_per_instance
-            audit_fail_errors = errors_flagged[audit_mask][fail_mask].sum()
-            c = audit_mask.sum() * c_audit + audit_fail_errors * c_fn + (~audit_mask).sum() * c_review
-            random_costs.append(c)
-        cost_random = float(np.mean(random_costs))
+        # AUDIT-ALL reference (7th round, requested): route every flagged instance to
+        # AUDIT (never REVIEW), under the scenario's own two possible reliabilities --
+        # optimistic (uniformly p_low) and pessimistic (uniformly p_high) -- to show
+        # where the cheapest possible blanket policy sits relative to I2-SPLIT.
+        cost_audit_all_opt = n_flagged * c_audit + (1 - p_low) * errors_flagged.sum() * c_fn
+        cost_audit_all_pes = n_flagged * c_audit + (1 - p_high) * errors_flagged.sum() * c_fn
+
+        # RANDOM-SPLIT control: same audit/review split SIZE as I2-SPLIT, but WHICH
+        # instances go to audit is a uniform random draw (ignores I2_hat). Computed as
+        # an EXACT expectation (linearity of expectation over a hypergeometric draw),
+        # not a Monte Carlo average: each instance has probability n_audit_target/n_flagged
+        # of being the one audited, independent of its true I2 group or error status.
+        p_audit_draw = n_audit_target / n_flagged
+        expected_audit_fail_cost = c_fn * p_audit_draw * ((1 - p_low) * erg_low + (1 - p_high) * erg_high)
+        cost_random = n_audit_target * c_audit + (n_flagged - n_audit_target) * c_review + expected_audit_fail_cost
 
         sav_vs_review = (cost_all_review - cost_i2split) / cost_all_review * 100
         sav_vs_random = (cost_random - cost_i2split) / cost_random * 100
-        print(f"{name:46s} {cost_all_review:12.1f} {cost_random:14.1f} {cost_i2split:10.1f} "
-              f"{sav_vs_review:17.2f}% {sav_vs_random:17.2f}%")
+        print(f"{name:46s} {cost_all_review:12.1f} {cost_audit_all_opt:15.1f} {cost_audit_all_pes:15.1f} "
+              f"{cost_random:14.1f} {cost_i2split:10.1f} {sav_vs_review:13.2f}% {sav_vs_random:13.2f}%")
 
     print(f"\n(All costs are expected total cost over the {n_flagged} flagged JNU test instances, "
-          f"arbitrary relative units; RANDOM-SPLIT averaged over 2000 random permutations.)")
+          f"arbitrary relative units. RANDOM-SPLIT and AUDIT-ALL are exact expectations, not "
+          f"simulations. AUDIT-ALL(opt) applies the scenario's low-disagreement-half reliability "
+          f"p_low to every flagged instance uniformly; AUDIT-ALL(pes) applies p_high uniformly -- "
+          f"neither uses I2_hat at all, so together they bracket what a policy that ignores I2_hat "
+          f"entirely, but is optimistic or pessimistic about audit reliability, would cost.)")
