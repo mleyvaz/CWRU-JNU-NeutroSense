@@ -3,7 +3,7 @@
 Inserts PNG figures into CWRU_JNU_NeutroSense_INGENIUS_v3.docx
 replacing [Insert FigX_....png] placeholders.
 """
-import os, copy
+import os, sys, copy
 from docx import Document
 from docx.shared import Cm, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -12,8 +12,12 @@ from lxml import etree
 
 OUT = os.path.dirname(os.path.abspath(__file__))
 
-IN_DOC  = os.path.join(OUT, "CWRU_JNU_NeutroSense_v7.docx")
-OUT_DOC = os.path.join(OUT, "CWRU_JNU_NeutroSense_v7_FINAL.docx")
+if "--submission" in sys.argv:
+    IN_DOC  = os.path.join(OUT, "CWRU_JNU_NeutroSense_v7_SUBMISSION.docx")
+    OUT_DOC = os.path.join(OUT, "CWRU_JNU_NeutroSense_v7_SUBMISSION_FINAL.docx")
+else:
+    IN_DOC  = os.path.join(OUT, "CWRU_JNU_NeutroSense_v7.docx")
+    OUT_DOC = os.path.join(OUT, "CWRU_JNU_NeutroSense_v7_FINAL.docx")
 
 # Map placeholder text → (image file, width in cm)
 FIGURES = {
