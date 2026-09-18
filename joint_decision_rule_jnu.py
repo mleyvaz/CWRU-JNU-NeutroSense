@@ -159,14 +159,25 @@ if __name__ == "__main__":
         print(f"  {name:28s} AURC={area:.4f}  Acc@50%cov={acc50*100:.2f}%")
 
     ref_area = ref_results["I1_hat alone"]
+    print(f"\nFull precision: AURC_joint={aurc_joint:.10f}  AURC_I1_alone={ref_area:.10f}  "
+          f"diff={ref_area - aurc_joint:.6e}")
+    # Count of coverage levels where the joint envelope is strictly better than I1_hat
+    # alone (the "branch 0" curve, i.e. tau2=max), and where it ties -- cited in the
+    # manuscript (Section 4.4) and must come from this log, not a separate ad hoc run.
+    i1_alone_local_risk = tie_corrected_local_risk(entropy, errors)
+    n_strictly_better = int((env_risk < i1_alone_local_risk - 1e-12).sum())
+    n_tied = int((np.abs(env_risk - i1_alone_local_risk) <= 1e-12).sum())
+    print(f"Coverage levels (of {n_total}) where joint envelope is strictly better than I1_hat alone: "
+          f"{n_strictly_better}; tied: {n_tied}; worse: {n_total - n_strictly_better - n_tied} "
+          f"(should be 0 -- envelope over a superset cannot be worse)")
     if aurc_joint < ref_area - 1e-9:
-        print(f"\n=> Joint rule IMPROVES on I1_hat alone: {aurc_joint:.4f} < {ref_area:.4f}")
+        print(f"\n=> Joint rule IMPROVES on I1_hat alone: {aurc_joint:.5f} < {ref_area:.5f}")
     elif abs(aurc_joint - ref_area) <= 1e-9:
-        print(f"\n=> Joint rule is IDENTICAL to I1_hat alone: {aurc_joint:.4f} == {ref_area:.4f} "
+        print(f"\n=> Joint rule is IDENTICAL to I1_hat alone: {aurc_joint:.5f} == {ref_area:.5f} "
               f"(expected: tau2=max makes the AND-rule degenerate to I1_hat alone, and the "
               f"envelope never needs a smaller tau2 to do better)")
     else:
-        print(f"\n=> Joint rule does NOT improve on I1_hat alone: {aurc_joint:.4f} >= {ref_area:.4f}")
+        print(f"\n=> Joint rule does NOT improve on I1_hat alone: {aurc_joint:.5f} >= {ref_area:.5f}")
 
     # Sanity check requested by the 7th-round review: with I2_hat held constant
     # (single branch, tau2 = its only value), the joint family collapses exactly

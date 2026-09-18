@@ -147,7 +147,7 @@ if __name__ == "__main__":
     erg_high = errors_flagged[~is_low_i2].sum()
     n_audit_target = int(is_low_i2.sum())
 
-    print(f"\n{'Scenario':46s} {'ALL-REVIEW':>12s} {'AUDIT-ALL(opt)':>15s} {'AUDIT-ALL(pes)':>15s} {'RANDOM-SPLIT':>14s} {'I2-SPLIT':>10s} {'Sav.vs review':>14s} {'Sav.vs random':>14s}")
+    print(f"\n{'Scenario':46s} {'ALL-REVIEW':>12s} {'AUDIT-ALL(opt)':>15s} {'AUDIT-ALL(pes)':>15s} {'AUDIT-ALL(true)':>15s} {'RANDOM-SPLIT':>14s} {'I2-SPLIT':>10s} {'Sav.vs review':>14s} {'Sav.vs random':>14s} {'Sav.vs audit-true':>18s}")
     for name, c_review, c_audit, c_fn, p_low, p_high in scenarios:
         cost_all_review = expected_cost_all_review(n_flagged, c_review)
 
@@ -156,12 +156,20 @@ if __name__ == "__main__":
         cost_i2split_review = (~is_low_i2).sum() * c_review
         cost_i2split = cost_i2split_audit + cost_i2split_review
 
-        # AUDIT-ALL reference (7th round, requested): route every flagged instance to
-        # AUDIT (never REVIEW), under the scenario's own two possible reliabilities --
-        # optimistic (uniformly p_low) and pessimistic (uniformly p_high) -- to show
-        # where the cheapest possible blanket policy sits relative to I2-SPLIT.
+        # AUDIT-ALL references (7th round, requested; refined in 8th round per follow-up
+        # review). Three variants, route every flagged instance to AUDIT (never REVIEW):
+        #   (opt)/(pes): apply ONE reliability (p_low or p_high) uniformly to ALL flagged
+        #     instances -- NOT achievable under S2/S3's own assumptions (there the two
+        #     groups truly have different reliabilities), kept only as an illustrative
+        #     bracket of the best/worst case if reliability did not depend on I2_hat.
+        #   (true): the fair, scenario-consistent comparator -- audit EVERYONE, but each
+        #     instance keeps its OWN group's true reliability (p_low for the low-disagreement
+        #     half, p_high for the high-disagreement half). This directly answers "is it
+        #     worth reserving the high-disagreement half for expensive REVIEW instead of
+        #     also just auditing it", using the scenario's own numbers, not a uniform guess.
         cost_audit_all_opt = n_flagged * c_audit + (1 - p_low) * errors_flagged.sum() * c_fn
         cost_audit_all_pes = n_flagged * c_audit + (1 - p_high) * errors_flagged.sum() * c_fn
+        cost_audit_all_true = n_flagged * c_audit + (1 - p_low) * erg_low * c_fn + (1 - p_high) * erg_high * c_fn
 
         # RANDOM-SPLIT control: same audit/review split SIZE as I2-SPLIT, but WHICH
         # instances go to audit is a uniform random draw (ignores I2_hat). Computed as
@@ -174,12 +182,16 @@ if __name__ == "__main__":
 
         sav_vs_review = (cost_all_review - cost_i2split) / cost_all_review * 100
         sav_vs_random = (cost_random - cost_i2split) / cost_random * 100
+        sav_vs_audit_true = (cost_audit_all_true - cost_i2split) / cost_audit_all_true * 100
         print(f"{name:46s} {cost_all_review:12.1f} {cost_audit_all_opt:15.1f} {cost_audit_all_pes:15.1f} "
-              f"{cost_random:14.1f} {cost_i2split:10.1f} {sav_vs_review:13.2f}% {sav_vs_random:13.2f}%")
+              f"{cost_audit_all_true:15.1f} {cost_random:14.1f} {cost_i2split:10.1f} "
+              f"{sav_vs_review:13.2f}% {sav_vs_random:13.2f}% {sav_vs_audit_true:16.2f}%")
 
     print(f"\n(All costs are expected total cost over the {n_flagged} flagged JNU test instances, "
-          f"arbitrary relative units. RANDOM-SPLIT and AUDIT-ALL are exact expectations, not "
-          f"simulations. AUDIT-ALL(opt) applies the scenario's low-disagreement-half reliability "
-          f"p_low to every flagged instance uniformly; AUDIT-ALL(pes) applies p_high uniformly -- "
-          f"neither uses I2_hat at all, so together they bracket what a policy that ignores I2_hat "
-          f"entirely, but is optimistic or pessimistic about audit reliability, would cost.)")
+          f"arbitrary relative units. RANDOM-SPLIT and all AUDIT-ALL variants are exact "
+          f"expectations, not simulations. AUDIT-ALL(opt)/(pes) apply ONE reliability uniformly "
+          f"to every flagged instance and are NOT achievable policies under S2/S3's own "
+          f"assumptions (kept only as an illustrative best/worst bracket). AUDIT-ALL(true) is the "
+          f"fair, scenario-consistent comparator: audit everyone, but each instance keeps its own "
+          f"group's true reliability -- this is the correct baseline for 'is I2-based routing to "
+          f"REVIEW worth it, versus just auditing everyone with the scenario's real numbers'.)")
