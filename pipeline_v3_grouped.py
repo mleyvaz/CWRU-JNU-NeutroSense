@@ -7,8 +7,9 @@ overlapping windows globally, letting adjacent, 50%-overlapping windows
 leak across the split -- confirmed by adversarial review, 2026-09-17).
 
 Design: leave-one-condition-out.
-  CWRU: hold out load = 3 HP (the 4th file listed per class: 100, 108, 112, 133)
-        for TEST; train on loads 0/1/2 HP (files 97-99, 105-107, 109-111, 130-132).
+  CWRU: hold out load = 3 HP (the 4th file listed per class: 100, 121, 108, 133 --
+        see CWRU_TEST_FILES below, updated for the corrected Ball/Inner mapping)
+        for TEST; train on loads 0/1/2 HP.
   JNU:  hold out speed = 1000 rpm for TEST; train on 600/800 rpm.
 
 This is a harder, more realistic generalization test (unseen operating

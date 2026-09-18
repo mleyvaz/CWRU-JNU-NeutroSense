@@ -25,6 +25,7 @@ warnings.filterwarnings("ignore")
 np.random.seed(42)
 
 import jnu_neutro_pipeline as jn
+from baseline_comparison_jnu import aurc
 
 OUT = os.path.dirname(os.path.abspath(__file__))
 
@@ -108,6 +109,35 @@ if __name__ == "__main__":
     errors_test = (y_pred_test != y_test).astype(int)
     print(f"Ensemble accuracy on test (1000 rpm, never used to fit or select thresholds): "
           f"{(1-errors_test.mean())*100:.2f}%")
+
+    # NEW (addresses the most serious independent-review finding on this experiment):
+    # the earlier version of this script validated single-threshold POINTS for I1_new-only,
+    # I2_new-only, and the joint rule, but never validated the actual AURC of the fixed
+    # linear COMBINATION reported as this project's headline positive result
+    # (decomposed_indeterminacy_jnu.py). We do that here: compute I1_new/I2_new's own
+    # mean/std on the FIT set (600rpm, the only data the ensemble and any deployed
+    # standardization constants would ever see), use those FIXED constants to standardize
+    # validation and test, and report full AURC (not just a single coverage point) on both.
+    y_pred_fit, I1_fit, I2_fit = compute_new_indicators(rf, xgb, lr, X_fit_sc)
+    combo_val = (I1_val - I1_fit.mean()) / I1_fit.std() + (I2_val - I2_fit.mean()) / I2_fit.std()
+    combo_test = (I1_test - I1_fit.mean()) / I1_fit.std() + (I2_test - I2_fit.mean()) / I2_fit.std()
+    area_combo_val, acc50_combo_val = aurc(combo_val, errors_val)
+    area_combo_test, acc50_combo_test = aurc(combo_test, errors_test)
+    area_i1_test_full, _ = aurc(I1_test, errors_test)
+    area_i2_test_full, _ = aurc(I2_test, errors_test)
+    print(f"\n=== AURC of the FIXED (fit-standardized) combination, full risk-coverage curve ===")
+    print(f"  Validation (sanity check, 800rpm): AURC={area_combo_val:.4f}  Acc@50%cov={acc50_combo_val*100:.2f}%")
+    print(f"  TEST (honest, 1000rpm, never used to fit standardization constants): "
+          f"AURC={area_combo_test:.4f}  Acc@50%cov={acc50_combo_test*100:.2f}%")
+    print(f"  For comparison, same fit-600/test-1000 ensemble: I1_new alone AURC={area_i1_test_full:.4f}, "
+          f"I2_new alone AURC={area_i2_test_full:.4f}")
+    if area_combo_test < min(area_i1_test_full, area_i2_test_full) - 1e-9:
+        print(f"  => The fixed combination's AURC genuinely improves on both single indicators here too, "
+              f"using ONLY fit-set statistics -- this is the properly validated version of Section 4.6.1's "
+              f"headline result.")
+    else:
+        print(f"  => The fixed combination does NOT clearly improve on the better single indicator under "
+              f"this fit-only-standardized, single-condition-ensemble check.")
 
     # --- Rule 1: I1_new-only threshold, selected on validation for 50% coverage ---
     tau1_val_50 = np.quantile(I1_val, 0.50)

@@ -101,6 +101,27 @@ if __name__ == "__main__":
     kl_lr = kl_div(P_lr, P_avg) / np.log(n_classes)
     I2_new = (kl_rf + kl_xgb + kl_lr) / 3.0  # mean_m[KL(P_m||P_avg)] -- epistemic-like (normalized by log(n_classes) for scale)
 
+    # CRITICAL FIX (found by independent multi-model adversarial review, 2026-09-18: three
+    # different reviewer models -- one via an explicit algebraic-identity argument -- caught
+    # that the combination below was standardized using MEAN/STD COMPUTED FROM THE TEST SET
+    # itself, and one reviewer additionally proved this analytically: since I1_new+I2_new is
+    # EXACTLY H(P_avg) by the identity verified below, a raw, unstandardized sum has NO
+    # freedom to differ from the original I1_hat's AURC at all -- it is definitionally the
+    # same quantity. Any apparent AURC improvement from "combining" I1_new and I2_new can
+    # only come from a WEIGHTING/STANDARDIZATION step, and that step must use statistics
+    # computed OUTSIDE the test set to be deployment-honest. Fixed by computing I1_new/I2_new
+    # on the TRAINING set (600+800 rpm, the same data the ensemble was fit on) and using
+    # those FIXED train-derived mean/std to standardize the test-set values -- no test
+    # statistics are used anywhere in the corrected combination below.
+    P_rf_tr = rf.predict_proba(Xtr_sc); P_xgb_tr = xgb.predict_proba(Xtr_sc); P_lr_tr = lr.predict_proba(Xtr_sc)
+    H_rf_tr = entropy_norm(P_rf_tr, n_classes); H_xgb_tr = entropy_norm(P_xgb_tr, n_classes); H_lr_tr = entropy_norm(P_lr_tr, n_classes)
+    I1_new_tr = (H_rf_tr + H_xgb_tr + H_lr_tr) / 3.0
+    P_avg_tr = (P_rf_tr + P_xgb_tr + P_lr_tr) / 3.0
+    kl_rf_tr = kl_div(P_rf_tr, P_avg_tr) / np.log(n_classes)
+    kl_xgb_tr = kl_div(P_xgb_tr, P_avg_tr) / np.log(n_classes)
+    kl_lr_tr = kl_div(P_lr_tr, P_avg_tr) / np.log(n_classes)
+    I2_new_tr = (kl_rf_tr + kl_xgb_tr + kl_lr_tr) / 3.0
+
     # Sanity check: H(P_avg) should equal I1_new + I2_new exactly (up to float error),
     # since this is an algebraic identity, not an approximation. This is a check the
     # ORIGINAL (entropy, vote-disagreement) pair cannot pass, because vote-disagreement
@@ -142,10 +163,29 @@ if __name__ == "__main__":
     print(f"I1_hat original (H(P_avg)):      AURC={area_i1_orig:.4f}  Acc@50%cov={acc50_i1_orig*100:.2f}%  "
           f"(reference, matches Table 3b's 0.3915)")
 
-    # Linear combination and exact oracle joint rule with the NEW indicators.
-    combo_new = (I1_new - I1_new.mean()) / I1_new.std() + (I2_new - I2_new.mean()) / I2_new.std()
+    # Linear combinations -- THREE variants, to make the correction transparent:
+    #   (raw)   unstandardized I1_new+I2_new -- MUST equal H(P_avg)'s own AURC exactly,
+    #           since I1_new+I2_new IS H(P_avg) by the verified identity. This has no
+    #           freedom to improve on the original I1_hat by construction.
+    #   (leaky) standardized using TEST-set mean/std (the bug independent review caught;
+    #           kept here ONLY to document the error, not as a result to report).
+    #   (fixed) standardized using TRAIN-set (600+800rpm) mean/std, applied to test --
+    #           the honest, deployment-valid version. This is the number the manuscript
+    #           now reports.
+    raw_sum_new = I1_new + I2_new
+    area_raw, acc50_raw = aurc(raw_sum_new, errors)
+    print(f"\nRAW I1_new+I2_new (no standardization): AURC={area_raw:.6f} "
+          f"(must equal I1_hat original's AURC exactly, since I1_new+I2_new == H(P_avg))")
+
+    combo_leaky = (I1_new - I1_new.mean()) / I1_new.std() + (I2_new - I2_new.mean()) / I2_new.std()
+    area_leaky, _ = aurc(combo_leaky, errors)
+    print(f"LEAKY combo (test-set-standardized -- DO NOT REPORT, kept only for documentation): "
+          f"AURC={area_leaky:.6f}")
+
+    combo_new = (I1_new - I1_new_tr.mean()) / I1_new_tr.std() + (I2_new - I2_new_tr.mean()) / I2_new_tr.std()
     area_combo_new, acc50_combo_new = aurc(combo_new, errors)
-    print(f"I1_new + I2_new (linear combination): AURC={area_combo_new:.4f}  Acc@50%cov={acc50_combo_new*100:.2f}%")
+    print(f"FIXED combo (train-set-standardized, deployment-honest): "
+          f"AURC={area_combo_new:.6f}  Acc@50%cov={acc50_combo_new*100:.2f}%")
 
     from joint_decision_rule_jnu import tie_corrected_local_risk
     n_total = len(errors)
@@ -163,13 +203,29 @@ if __name__ == "__main__":
         env_risk[:len(local_risk)] = np.minimum(env_risk[:len(local_risk)], local_risk)
     coverage = np.arange(1, n_total + 1) / n_total
     aurc_joint_new = np.trapezoid(env_risk, coverage) if hasattr(np, "trapezoid") else np.trapz(env_risk, coverage)
-    print(f"\nExact oracle joint rule (I1_new<=tau1 AND I2_new<=tau2): AURC={aurc_joint_new:.6f}")
+    # CORRECTION (independent review): tau2_grid_new is capped at 200 quantile points when
+    # I2_new has more unique values than that (it has ~5,634 here), so this is an
+    # APPROXIMATE grid oracle, not a mathematically exact one; label it accordingly.
+    print(f"\nApproximate (200-quantile grid) oracle joint rule (I1_new<=tau1 AND I2_new<=tau2): "
+          f"AURC={aurc_joint_new:.6f}")
     print(f"I1_new alone (reference, same method):                    AURC={area_i1_new:.6f}")
+    print(f"FIXED combo, train-standardized (reference, same method): AURC={area_combo_new:.6f}")
     diff_new = area_i1_new - aurc_joint_new
     if diff_new > 1e-9:
-        print(f"=> Joint rule (NEW indicators) IMPROVES on I1_new alone by {diff_new:.6f}")
+        print(f"=> Joint rule (NEW indicators) improves on I1_new ALONE by {diff_new:.6f}")
     else:
         print(f"=> Joint rule (NEW indicators) does NOT improve on I1_new alone (diff={diff_new:.6f})")
+    # CORRECTION (independent review, Grok): the joint rule must be compared against the
+    # FIXED combo too, using the correct direction (lower AURC = better). An earlier
+    # version of this script's text wrongly called the joint rule "a further improvement
+    # over the fixed combination" -- numerically it is WORSE (higher AURC), not better.
+    diff_vs_combo = area_combo_new - aurc_joint_new
+    if diff_vs_combo > 1e-9:
+        print(f"=> Joint rule ALSO improves on the fixed combo by {diff_vs_combo:.6f}")
+    else:
+        print(f"=> Joint rule is WORSE than (or ties) the fixed combo by {-diff_vs_combo:.6f} "
+              f"(lower AURC is better; {aurc_joint_new:.6f} > {area_combo_new:.6f}) -- the "
+              f"combo, not the joint rule, is this experiment's best result.")
 
     # --- Hidden-risk zone with new indicators ---
     print("\n=== Hidden-risk zone (low I1_new, split by I2_new median) ===")
