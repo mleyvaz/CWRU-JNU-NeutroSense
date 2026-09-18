@@ -160,6 +160,7 @@ if __name__ == "__main__":
         ("S3: same as S2, MORE reliable in low-I2 group too", 5, 1, 15, 0.95, 0.30),
         ("S4: no reliability gap (control)",                 5, 1, 15, 0.70, 0.70),
         ("S5: gap exists but too small (counterexample)",    5, 1, 15, 0.90, 0.80),
+        ("S6: NO gap at all, I2-SPLIT still wins",           5, 1, 15, 0.30, 0.30),
     ]
 
     erg_low = errors_flagged[is_low_i2].sum()
@@ -190,15 +191,17 @@ if __name__ == "__main__":
         cost_audit_all_pes = n_flagged * c_audit + (1 - p_high) * errors_flagged.sum() * c_fn
         cost_audit_all_true = n_flagged * c_audit + (1 - p_low) * erg_low * c_fn + (1 - p_high) * erg_high * c_fn
 
-        # Breakeven condition (9th round, requested): I2-SPLIT vs AUDIT-ALL(true) reduces
-        # algebraically to a condition on p_high ALONE (the p_low term is identical in both
-        # policies and cancels): I2-SPLIT is cheaper iff
+        # Breakeven condition (9th round, requested; corrected in 10th round -- an external
+        # review showed the "gap is necessary" framing below was WRONG, not just imprecise):
+        # I2-SPLIT vs AUDIT-ALL(true) reduces algebraically to a condition on p_high ALONE
+        # (the p_low term is identical in both policies and cancels): I2-SPLIT is cheaper iff
         #   (1 - p_high) * erg_high * c_fn  >  n_high * (c_review - c_audit)
         # i.e. iff  p_high < 1 - n_high*(c_review-c_audit)/(erg_high*c_fn).
-        # A reliability GAP existing (p_low > p_high) is necessary for this to be plausible
-        # but NOT sufficient by itself -- p_high must be low enough, relative to the
-        # review/audit cost gap and the error rate of the high-disagreement group, for
-        # routing it to REVIEW to pay for itself. This is verified per scenario below.
+        # A reliability GAP (p_low > p_high) is NEITHER necessary NOR sufficient: verified
+        # with p_low=p_high=0.30 (NO gap at all), I2-SPLIT (22953.0) still beats AUDIT-ALL(true)
+        # (25871.5), because p_high=0.30 is still below the breakeven -- p_low plays no role at
+        # all in this comparison. Only the p_high-vs-breakeven condition matters; do not describe
+        # a gap as a precondition anywhere below.
         n_high = (~is_low_i2).sum()
         p_high_breakeven = 1 - n_high * (c_review - c_audit) / (erg_high * c_fn)
 
@@ -214,14 +217,22 @@ if __name__ == "__main__":
         sav_vs_review = (cost_all_review - cost_i2split) / cost_all_review * 100
         sav_vs_random = (cost_random - cost_i2split) / cost_random * 100
         sav_vs_audit_true = (cost_audit_all_true - cost_i2split) / cost_audit_all_true * 100
-        i2split_wins = "I2-SPLIT wins" if p_high < p_high_breakeven else "AUDIT-ALL wins"
+        # Tie detection with numerical tolerance (10th round fix): at the exact breakeven
+        # point the two costs are equal; a bare "<" comparison would misreport that as a win
+        # for one side.
+        if abs(p_high - p_high_breakeven) < 1e-9:
+            i2split_wins = "TIE (exact breakeven)"
+        elif p_high < p_high_breakeven:
+            i2split_wins = "I2-SPLIT wins"
+        else:
+            i2split_wins = "AUDIT-ALL wins"
         print(f"{name:46s} {cost_all_review:12.1f} {cost_audit_all_opt:15.1f} {cost_audit_all_pes:15.1f} "
               f"{cost_audit_all_true:15.1f} {cost_random:14.1f} {cost_i2split:10.1f} "
               f"{sav_vs_review:13.2f}% {sav_vs_random:13.2f}% {sav_vs_audit_true:16.2f}%")
         print(f"    -> breakeven p_high for this scenario = {p_high_breakeven:.5f}; "
-              f"actual p_high = {p_high:.2f} -> {i2split_wins} (a reliability gap p_low>p_high "
-              f"existing is necessary but NOT sufficient by itself; p_high must additionally be "
-              f"below this breakeven value)")
+              f"actual p_high = {p_high:.2f} -> {i2split_wins} (this depends on p_high ALONE; "
+              f"a reliability gap p_low>p_high is NEITHER necessary NOR sufficient for I2-SPLIT "
+              f"to win -- only whether p_high is below the breakeven value matters)")
 
     print(f"\n(All costs are expected total cost over the {n_flagged} flagged JNU test instances, "
           f"arbitrary relative units. RANDOM-SPLIT and all AUDIT-ALL variants are exact "
