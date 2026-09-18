@@ -116,12 +116,6 @@ r = p.add_run("Neutrosophic Ensemble Classification for Uncertainty-Aware Bearin
 sfont(r, size=14, bold=True)
 p.paragraph_format.space_after = Pt(4)
 
-p = doc.add_paragraph()
-p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-r = p.add_run("Clasificacion de Conjunto Neutrosofico para la Deteccion de Fallos en Rodamientos: Evidencia desde Benchmarks de Laboratorio y Velocidad Variable")
-sfont(r, size=12, italic=True)
-p.paragraph_format.space_after = Pt(8)
-
 # AUTHORS
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -185,48 +179,6 @@ p = doc.add_paragraph()
 r = p.add_run("Keywords: "); sfont(r, bold=True)
 r2 = p.add_run("neutrosophic logic; ensemble classification; bearing fault detection; predictive maintenance; uncertainty quantification; industrial drive systems")
 sfont(r2); p.paragraph_format.space_after = Pt(6)
-
-heading(doc, "Resumen")
-body(doc, (
-    "Los clasificadores de aprendizaje automatico para la deteccion de fallos en rodamientos "
-    "producen puntuaciones de confianza escalares que confunden errores confiados con predicciones "
-    "genuinamente ambiguas, y el par verdad/falsedad convencional (F = 1 - T) es redundante por "
-    "construccion algebraica. Este articulo operacionaliza una descomposicion neutrosofica refinada "
-    "de un conjunto RF + XGBoost + Regresion Logistica en cuatro indicadores: T-sombrero = P1, "
-    "F-sombrero = P2 (evidencia del mejor competidor, no simplemente 1-T-sombrero), entropia "
-    "predictiva I1-sombrero (entropia normalizada de toda la distribucion de probabilidad, que "
-    "algebraicamente contiene un componente intra-modelo y otro entre-modelos y por tanto no es "
-    "puramente aleatoria) y desacuerdo de decision I2-sombrero (desacuerdo de voto entre los "
-    "modelos base). Se evalua en CWRU y JNU (600-1000 rpm) bajo un protocolo de validacion por "
-    "condicion excluida que retiene una condicion operativa completa e inedita por clase. En CWRU, "
-    "tras corregir un error de mapeo archivo-clase en el que las clases \"Ball\" e \"Inner\" eran en "
-    "realidad el mismo fallo de pista interna grabado a dos tasas de muestreo distintas (nunca se "
-    "habian usado los archivos reales de fallo de bola), el conjunto alcanza 100,00% de exactitud en "
-    "tres de las cuatro cargas retenidas, cayendo a 92,27% al retener 0 HP; los tres pliegues sin "
-    "error no dejan errores que los indicadores de incertidumbre puedan explicar, por lo que CWRU "
-    "funciona principalmente como control positivo, no como fuente de evidencia sobre la "
-    "descomposicion de incertidumbre. En JNU, reteniendo 1000 rpm, la exactitud "
-    "colapsa a 40,64% -- por debajo del 50,03% de predecir siempre la clase mayoritaria -- con "
-    "Regresion Logistica (57,91%) generalizando mucho mejor que los conjuntos de arboles (30-41%); "
-    "retener 600 u 800 rpm da 24,66% y 27,10% respectivamente, mostrando que el pliegue reportado es "
-    "el mejor caso de JNU, no el promedio. T-sombrero y F-sombrero permanecen fuertemente "
-    "correlacionados en JNU (r=-0,910, VIF=5,8) pero medible no redundantes. I1-sombrero muestra una "
-    "asociacion robusta con el error por umbral (brecha de division por mediana +30,4 pp) y un "
-    "aporte lineal independiente moderado mas alla de T-sombrero/F-sombrero conjuntamente (r "
-    "parcial=+0,217); una zona de riesgo oculto -- casos de baja entropia donde los modelos "
-    "discrepan -- muestra 63,7% de error frente a 28,2% cuando concuerdan. El aporte independiente "
-    "de I2-sombrero es pequeno y no significativo, y en una comparacion de clasificacion selectiva "
-    "contra lineas base simples, la confianza de la Regresion Logistica sola supera a todos los "
-    "indicadores basados en el conjunto, incluida la descomposicion propuesta. Dado que las ventanas "
-    "se solapan dentro de cada archivo y solo unos pocos archivos componen cada condicion de prueba "
-    "retenida, reportamos estos hallazgos como asociaciones descriptivas dentro de este diseno, no "
-    "como afirmaciones generalizables a condiciones replicadas independientes."
-), indent=False)
-
-p = doc.add_paragraph()
-r = p.add_run("Palabras clave: "); sfont(r, bold=True)
-r2 = p.add_run("logica neutrosofica; clasificacion de conjunto; deteccion de fallos en rodamientos; mantenimiento predictivo; cuantificacion de incertidumbre; sistemas de accionamiento industrial")
-sfont(r2); p.paragraph_format.space_after = Pt(10)
 
 # =============================================================
 # 1. INTRODUCTION
