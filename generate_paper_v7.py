@@ -11,24 +11,37 @@ Ball 0.007" @ 12kHz fault is files 118-121, never previously used. So the
 old "Ball" and "Inner" classes were the same physical fault at two sampling
 rates, and true ball-fault data was never included. Fixed by using 118-121
 for Ball and 105-108 for Inner (both 12kHz); 109-112 dropped. Effect: CWRU
-now classifies at 100.00% accuracy (was 98.06% under the confounded
-mapping) -- the four classes are genuinely, easily separable once correctly
-defined, confirmed across all 4 possible held-out loads (99.92-100%, see
-pipeline_multicondition.py). This makes CWRU's uncertainty-vs-error
-statistics degenerate (zero errors to explain) -- it now serves as a clean
-positive control, and JNU carries the substantive uncertainty-decomposition
-analysis. Also renamed I1-hat "aleatoric indeterminacy" -> "predictive
-entropy" and I2-hat "epistemic indeterminacy" -> "decision disagreement"
-(Section 3.5), since the entropy of the ensemble average provably contains
-both a within-model and a between-model (KL) component (Kendall & Gal,
-ref [16]) and so cannot be claimed as purely aleatoric; added a baseline
-comparison against simple confidence/margin selectors and standalone
-Logistic Regression (Section 4.4-4.5, baseline_comparison_jnu.py); added
-multi-condition robustness checks holding out every available load/speed in
-turn, not just one (pipeline_multicondition.py); added JNU balanced
-accuracy, macro-F1 and majority-class baseline; added a VIF figure for
-T-hat/F-hat collinearity; added a window-duration/revolution-count analysis
-(Section 5).
+now classifies at 100.00% accuracy on 3 of 4 held-out loads (was 98.06%
+under the confounded mapping) -- the four classes are genuinely, easily
+separable once correctly defined -- though a SECOND, independent CWRU
+issue was found in a later external review round: the Normal class
+(files 97-100) is recorded at 48kHz, not 12kHz like the fault classes,
+so 1,024-sample windows captured 1/4 the physical duration; fixed by
+decimating Normal to 12kHz before windowing (see
+NORMAL_48K_FILES/mat_to_de_signal in cwru_neutro_pipeline.py). After both
+fixes, CWRU is 100.00% on 3 of 4 folds but drops to 92.27% holding out
+0 HP (pipeline_multicondition.py) -- not universally perfect. This makes
+CWRU's uncertainty-vs-error statistics degenerate on its zero-error
+main-text (3 HP) fold -- it serves as a mostly-positive control, and JNU
+carries the substantive uncertainty-decomposition analysis. Also renamed
+I1-hat "aleatoric indeterminacy" -> "predictive entropy" and I2-hat
+"epistemic indeterminacy" -> "decision disagreement" (Section 3.5), since
+the entropy of the ensemble average provably contains both a within-model
+and a between-model (KL) component (Kendall & Gal, ref [16]) and so cannot
+be claimed as purely aleatoric; added a baseline comparison against simple
+confidence/margin selectors and standalone Logistic Regression (Section
+4.4-4.5, baseline_comparison_jnu.py), with tie-corrected AURC (a plain
+argsort silently broke ties among I2-hat's 4 discrete values in an
+arbitrary order) and an oracle joint (I1-hat AND I2-hat) decision-rule test
+(joint_decision_rule_jnu.py) that does NOT improve on I1-hat alone -- an
+honest negative result on whether the neutrosophic multi-axis framing adds
+quantitative value beyond conventional entropy; added multi-condition
+robustness checks holding out every available load/speed in turn, not just
+one (pipeline_multicondition.py); added JNU balanced accuracy, macro-F1 and
+majority-class baseline; added a VIF figure for T-hat/F-hat collinearity; a
+window-duration/revolution-count analysis (Section 5); and reproduced the
+historical condition-mixed-split JNU accuracy (82.6%, not the earlier-cited
+82.2%) with its own saved log for reproducibility.
 
 See pipeline_v3_grouped.py, pipeline_multicondition.py,
 baseline_comparison_jnu.py and full_grouped_output_r5_cwrufix.log for the
@@ -233,9 +246,10 @@ body(doc, (
 body(doc, (
     "Neutrosophic logic [4] addresses this by decomposing any proposition into truth (T), falsity "
     "(F), and indeterminacy (I). Applied to classification, T and F encode confidence magnitude "
-    "while I captures uncertainty geometry. Prior work has applied neutrosophic reasoning to fault "
-    "detection [5][6] but without systematically verifying whether I provides predictive information "
-    "beyond F -- a prerequisite for justifying the three-component representation."
+    "while I captures uncertainty geometry. Prior work has applied neutrosophic reasoning to "
+    "classification under uncertainty more broadly [5] and to bearing fault detection specifically "
+    "[6], but without systematically verifying whether I provides predictive information beyond F "
+    "-- a prerequisite for justifying the three-component representation."
 ))
 body(doc, (
     "A second limitation in the bearing fault detection literature is over-reliance on the CWRU "
@@ -269,12 +283,15 @@ body(doc, (
     "rather than as claims that generalize to independent replicate conditions, that predictive "
     "entropy I1-hat is associated with prediction error beyond T-hat and F-hat jointly on JNU. "
     "Fifth, we benchmark the proposed decomposition against simple confidence, margin, and "
-    "standalone-model baselines in a selective-classification comparison, and show that decision "
-    "disagreement I2-hat is a comparatively fragile signal whose estimated sign and significance "
-    "vary across benchmarks and preprocessing choices, and that standalone Logistic Regression "
-    "confidence -- not the full ensemble-based decomposition -- gives the best selective-"
-    "classification performance on JNU, a boundary condition we report as a methodological finding "
-    "in its own right rather than omit."
+    "standalone-model baselines in a selective-classification comparison on JNU (the only benchmark "
+    "with errors to select against once CWRU is corrected), including an oracle joint decision rule "
+    "over I1-hat and I2-hat jointly, and show that decision disagreement I2-hat is a comparatively "
+    "weak signal on its own, that jointly thresholding it with I1-hat does not improve on I1-hat "
+    "alone even in the best case, and that standalone Logistic Regression confidence -- not the full "
+    "ensemble-based decomposition -- gives the best selective-classification performance on JNU. We "
+    "report this honestly as a boundary condition on the practical, quantitative advantage of the "
+    "specifically neutrosophic multi-component framing over conventional uncertainty scores, rather "
+    "than omit it or overstate what has been demonstrated."
 ))
 
 # =============================================================
@@ -314,23 +331,33 @@ body(doc, (
 heading(doc, "3. Materials and Methods")
 heading(doc, "3.1. Datasets", level=2)
 body(doc, (
-    "CWRU Bearing Dataset [7]. Drive-end accelerometer data collected at 12 kHz under four load "
-    "conditions (0-3 HP). An earlier version of this pipeline used files 105-108 for \"Ball\" and "
-    "109-112 for \"Inner\"; per the official CWRU Bearing Data Center catalog these are both Inner "
-    "Race 0.007\" data -- 105-108 at 12 kHz and 109-112 at 48 kHz, the same physical fault at two "
-    "sampling rates, not two classes -- and the real Ball 0.007\" fault (12 kHz) is files 118-121, "
-    "which had never been used. We correct this: four classes, Normal (files 97-100), Ball fault "
-    "0.007\" (118-121), Inner Race 0.007\" (105-108), Outer Race 0.007\" at 6 o'clock (130-133), all "
-    "at the consistent 12 kHz drive-end rate; the 48 kHz duplicate (109-112) is dropped. Sixteen "
-    "files provide 6,155 windows (1,024 samples, 85.33 ms at 12 kHz, step 512): 3,312 Normal, 946 "
-    "Ball, 948 Inner, 949 Outer. (File 99.mat internally bundles an extra drive-end channel "
-    "belonging to 98.mat, a known artifact of the public CWRU release; we select only each file's "
-    "own channel.) This is a controlled laboratory benchmark with known fault geometry; motor speed "
-    "varies only mildly and incidentally with load, from approximately 1797 rpm at 0 HP to "
-    "approximately 1721 rpm at 3 HP (about 4% overall), so the held-out 3 HP condition (Section 3.3) "
-    "differs from training conditions primarily in load, with a comparatively small accompanying "
-    "speed change -- unlike JNU's directly and deliberately varied 600-1000 rpm (about 67% range, "
-    "described below)."
+    "CWRU Bearing Dataset [7]. Drive-end accelerometer data under four load conditions (0-3 HP). "
+    "An earlier version of this pipeline used files 105-108 for \"Ball\" and 109-112 for \"Inner\"; "
+    "per the official CWRU Bearing Data Center catalog these are both Inner Race 0.007\" data -- "
+    "105-108 at 12 kHz and 109-112 at 48 kHz, the same physical fault at two sampling rates, not two "
+    "classes -- and the real Ball 0.007\" fault (12 kHz) is files 118-121, which had never been "
+    "used. We correct this: four classes, Normal (files 97-100), Ball fault 0.007\" (118-121), "
+    "Inner Race 0.007\" (105-108), Outer Race 0.007\" at 6 o'clock (130-133); the 48 kHz duplicate "
+    "(109-112) is dropped. A second, independent sampling-rate issue affects the Normal class "
+    "specifically: files 97-100 (\"Normal Baseline Data\") are recorded at 48 kHz, not 12 kHz like "
+    "the three fault classes above -- confirmed both by their sample counts (each file's length "
+    "divided by 48 kHz gives a duration consistent with the dataset's documented recording length, "
+    "matching the fault files' durations at 12 kHz) and by the published literature's description "
+    "of a distinct \"48k normal-baseline\" category for this dataset. Applying the same 1,024-sample "
+    "window to an unmodified 48 kHz Normal signal would give it one-quarter the physical duration "
+    "of a fault-class window (21.33 ms vs. 85.33 ms), a sampling-rate confound between Normal and "
+    "every fault class independent of the Ball/Inner issue above. We resample the four Normal files "
+    "from 48 kHz to 12 kHz (decimation by 4, with the anti-aliasing filtering "
+    "scipy.signal.decimate applies) before windowing, so all four classes are windowed from a "
+    "consistently 12 kHz signal. Sixteen files provide 3,667 windows (1,024 samples, 85.33 ms at "
+    "12 kHz, step 512): 824 Normal, 946 Ball, 948 Inner, 949 Outer. (File 99.mat internally bundles "
+    "an extra drive-end channel belonging to 98.mat, a known artifact of the public CWRU release; "
+    "we select only each file's own channel.) This is a controlled laboratory benchmark with known "
+    "fault geometry; motor speed varies only mildly and incidentally with load, from approximately "
+    "1797 rpm at 0 HP to approximately 1721 rpm at 3 HP (about 4% overall), so the held-out 3 HP "
+    "condition (Section 3.3) differs from training conditions primarily in load, with a "
+    "comparatively small accompanying speed change -- unlike JNU's directly and deliberately varied "
+    "600-1000 rpm (about 67% range, described below)."
 ))
 body(doc, (
     "JNU Bearing Dataset [8]. Vibration data from Jiangnan University collected at 50 kHz under "
@@ -342,7 +369,8 @@ body(doc, (
     "in CWRU, producing substantially lower classification accuracy and more errors for statistical "
     "analysis. We note that the 1,024-sample window corresponds to a different physical duration on "
     "each dataset (Section 5): at 50 kHz it spans only about 0.21-0.34 shaft revolutions over "
-    "600-1000 rpm, versus about 2.5 revolutions at CWRU's 12 kHz and approximately 1750 rpm."
+    "600-1000 rpm, versus about 2.5 revolutions at CWRU's (resampled) 12 kHz and approximately "
+    "1750 rpm."
 ))
 
 heading(doc, "3.2. Feature Extraction", level=2)
@@ -372,7 +400,7 @@ body(doc, (
     "partitions. On CWRU (corrected file mapping, Section 3.1), the main-text held-out condition is "
     "the 3 HP load (files 100, 121, 108, 133, one per class); training uses the 0/1/2 HP files. On "
     "JNU, the main-text held-out condition is 1000 rpm (files n1000_3_2.csv, ib1000_2.csv, "
-    "ob1000_2.csv, tb1000_2.csv); training uses 600 and 800 rpm. This yields 4,495 training / 1,660 "
+    "ob1000_2.csv, tb1000_2.csv); training uses 600 and 800 rpm. This yields 2,718 training / 949 "
     "test windows on CWRU and 11,718 training / 5,859 test windows on JNU, redistributing the total "
     "windows above by condition rather than shuffling them, and constitutes a substantially harder "
     "and more realistic generalization test: the classifier must transfer to a load or speed it has "
@@ -491,7 +519,10 @@ body(doc, (
     "at or below the median, split by whether I2-hat indicates any base learner disagreement. All "
     "tests use random seed 42 for SMOTE resampling and model initialization; the train/test "
     "partition itself is fixed by the leave-one-condition-out design of Section 3.3 rather than by "
-    "a random seed."
+    "a random seed. For the single historical comparison figure quoted in Section 5 (JNU accuracy "
+    "under a condition-mixed, non-grouped random split), we re-ran the original pre-redesign "
+    "pipeline and report the resulting log alongside the other reproducibility artifacts, rather "
+    "than cite a figure without an accompanying run."
 ))
 body(doc, (
     "A limitation applies to every correlation and p-value reported in Section 4: the 1,024-sample "
@@ -514,22 +545,25 @@ heading(doc, "4. Results and Analysis")
 heading(doc, "4.1. Classification Performance under Leave-One-Condition-Out", level=2)
 body(doc, (
     "Table 1 summarizes ensemble performance on both benchmarks under the leave-one-condition-out "
-    "protocol of Section 3.3, using the corrected CWRU file mapping (Section 3.1). On CWRU, holding "
-    "out the entire 3 HP load, the ensemble achieves 100.00% accuracy (1,660/1,660 test windows): "
-    "once Ball and Inner Race are genuinely distinct classes, the four fault types are easily "
-    "separable and the classifier generalizes perfectly to an unseen load. On JNU, holding out the "
-    "entire 1000 rpm speed, accuracy is 40.64% (2,381/5,859) -- far below the 82.2% previously "
-    "reported under a condition-mixed random split, and below the 50.03% a classifier achieves by "
-    "always predicting the majority class (Normal, 2,931/5,859 test windows). Balanced accuracy "
-    "(50.41%) and macro-F1 (44.46%) are higher than raw accuracy because the ensemble does identify "
-    "several fault classes reasonably well (Outer recall 0.85) while badly under-recognizing Normal "
-    "(recall 0.21); raw accuracy alone would understate how much class-specific signal survives the "
-    "speed shift, and the majority-baseline comparison shows that signal does not yet translate "
-    "into a net practical improvement over the trivial predictor in overall accuracy terms."
+    "protocol of Section 3.3, using the corrected CWRU file mapping and Normal-class resampling "
+    "(Section 3.1). On CWRU, holding out the entire 3 HP load, the ensemble achieves 100.00% "
+    "accuracy (949/949 test windows): once Ball and Inner Race are genuinely distinct classes and "
+    "Normal is windowed at the same effective sampling rate as the fault classes, the four fault "
+    "types are easily separable and the classifier generalizes perfectly to this particular unseen "
+    "load. On JNU, holding out the entire 1000 rpm speed, accuracy is 40.64% (2,381/5,859) -- far "
+    "below the 82.6% we reproduce under a condition-mixed random split using the original, "
+    "pre-leave-one-condition-out pipeline (see Section 5), and below the 50.03% a classifier "
+    "achieves by always predicting the majority class (Normal, 2,931/5,859 test windows). Balanced "
+    "accuracy (50.41%) and macro-F1 (44.46%) are higher than raw accuracy because the ensemble does "
+    "identify several fault classes reasonably well (Outer recall 0.85) while badly "
+    "under-recognizing Normal (recall 0.21); raw accuracy alone would understate how much "
+    "class-specific signal survives the speed shift, and the majority-baseline comparison shows "
+    "that signal does not yet translate into a net practical improvement over the trivial predictor "
+    "in overall accuracy terms."
 ))
 
 # Table 1
-caption(doc, "Table 1. Classification performance under leave-one-condition-out: CWRU (held-out 3 HP, corrected mapping) vs JNU (held-out 1000 rpm)")
+caption(doc, "Table 1. Classification performance under leave-one-condition-out: CWRU (held-out 3 HP, corrected mapping and resampling) vs JNU (held-out 1000 rpm)")
 t1 = doc.add_table(rows=9, cols=7); t1.style = "Table Grid"
 t1.alignment = WD_TABLE_ALIGNMENT.CENTER
 h1 = ["Class", "CWRU Prec.", "CWRU Rec.", "CWRU F1", "JNU Prec.", "JNU Rec.", "JNU F1"]
@@ -542,26 +576,26 @@ d1 = [
     ["Overall acc.", "—","—","100.00%", "—","—","40.64%"],
     ["Balanced acc.", "—","—","100.00%", "—","—","50.41%"],
     ["Macro F1", "—","—","100.00%", "—","—","44.46%"],
-    ["Majority-class baseline acc.", "—","—","~25%*", "—","—","50.03%"],
+    ["Majority-class baseline acc.", "—","—","25.08%*", "—","—","50.03%"],
 ]
 for i, row in enumerate(d1): table_row(t1.rows[i+1], row)
 doc.add_paragraph()
-caption(doc, "* CWRU test classes are near-balanced (947/236/239/238), so the majority-class baseline is uninformative there and shown only for symmetry with JNU.")
+caption(doc, "* CWRU test classes are near-balanced (236/236/239/238 of 949), so the majority-class baseline is uninformative there and shown only for symmetry with JNU.")
 
 caption(doc, "Figure 1. Proposed neutrosophic ensemble pipeline. [Insert Fig1_Architecture.png]")
 caption(doc, "Figure 2. Confusion matrices on CWRU (left) and JNU (right) test sets, leave-one-condition-out. [Insert Fig2_ConfusionMatrices_v4.png]")
 
 body(doc, (
-    "Individual model accuracies on CWRU: RF, XGB and LR all reach 100.00%. On JNU, the picture is "
-    "qualitatively different: RF 30.07%, XGB 40.72%, LR 57.91%. Logistic Regression generalizes to "
-    "the unseen speed roughly 17-28 percentage points better than either tree ensemble. Because RF "
-    "and XGBoost partition feature space using axis-aligned splits learned from the 600/800 rpm "
-    "training distribution, they likely overfit to speed-specific feature thresholds that do not "
-    "transfer to 1000 rpm, whereas the linear decision boundary of Logistic Regression extrapolates "
-    "more gracefully. The soft-voted ensemble (40.64%) sits close to XGBoost and well below LR, "
-    "meaning equal-weight averaging is not the best strategy under this kind of distribution shift "
-    "-- a limitation we return to in Section 5, and one that motivates the baseline comparison of "
-    "Section 4.4."
+    "Individual model accuracies on CWRU: RF, XGB and LR all reach 100.00% on the main-text 3 HP "
+    "fold. On JNU, the picture is qualitatively different: RF 30.07%, XGB 40.72%, LR 57.91%. "
+    "Logistic Regression generalizes to the unseen speed roughly 17-28 percentage points better "
+    "than either tree ensemble. Because RF and XGBoost partition feature space using axis-aligned "
+    "splits learned from the 600/800 rpm training distribution, they likely overfit to "
+    "speed-specific feature thresholds that do not transfer to 1000 rpm, whereas the linear "
+    "decision boundary of Logistic Regression extrapolates more gracefully. The soft-voted ensemble "
+    "(40.64%) sits close to XGBoost and well below LR, meaning equal-weight averaging is not the "
+    "best strategy under this kind of distribution shift -- a limitation we return to in Section 5, "
+    "and one that motivates the baseline comparison of Section 4.4."
 ))
 body(doc, (
     "Because a single held-out condition could be an unrepresentative best or worst case rather "
@@ -569,14 +603,15 @@ body(doc, (
     "(JNU) in turn (Table 1b), reporting only ensemble accuracy, balanced accuracy, macro-F1 and "
     "individual-model accuracy per fold (the full statistical battery of Sections 3.5-3.6 is applied "
     "only to the main-text fold, for the reasons discussed in Section 3.6 and Section 5). On CWRU, "
-    "accuracy is 99.92-100.00% across all four folds, confirming that the 3 HP result is "
-    "representative rather than an outlier -- the corrected classes generalize essentially perfectly "
-    "regardless of which load is held out (the one partial exception, LR at 79.75% when 0 HP is "
-    "held out, does not affect ensemble accuracy, which remains 99.92% for that fold). On JNU, "
-    "accuracy varies substantially by held-out speed: 24.66% (600 rpm), 27.10% (800 rpm), and 40.64% "
-    "(1000 rpm) -- meaning the 1000 rpm fold reported as the main result throughout this paper is "
-    "JNU's best case, not its average one, and the true difficulty of generalizing to an arbitrary "
-    "unseen speed on this benchmark is, if anything, understated by our headline number."
+    "accuracy is 100.00% on three of the four folds, but drops to 92.27% when the 0 HP load is held "
+    "out instead -- a real, non-negligible generalization gap driven mainly by Logistic Regression "
+    "(68.84% on that fold, dragging down an otherwise strong RF/XGB pair), showing that the "
+    "3 HP result, while representative of most folds, is not universal: CWRU is not trivially "
+    "perfect under every possible held-out load. On JNU, accuracy varies substantially by held-out "
+    "speed: 24.66% (600 rpm), 27.10% (800 rpm), and 40.64% (1000 rpm) -- meaning the 1000 rpm fold "
+    "reported as the main result throughout this paper is JNU's best case, not its average one, and "
+    "the true difficulty of generalizing to an arbitrary unseen speed on this benchmark is, if "
+    "anything, understated by our headline number."
 ))
 
 # Table 1b
@@ -585,10 +620,10 @@ t1b = doc.add_table(rows=5, cols=6); t1b.style = "Table Grid"
 t1b.alignment = WD_TABLE_ALIGNMENT.CENTER
 table_row(t1b.rows[0], ["Held-out condition", "N test", "Ensemble acc.", "Bal. acc.", "Macro F1", "RF / XGB / LR"], bold=True)
 d1b = [
-    ["CWRU: 0 HP", "1,185", "99.92%", "99.89%", "99.92%", "100.00% / 99.92% / 79.75%"],
-    ["CWRU: 1 HP", "1,655", "100.00%", "100.00%", "100.00%", "100.00% / 100.00% / 99.94%"],
-    ["CWRU: 2 HP", "1,655", "100.00%", "100.00%", "100.00%", "100.00% / 100.00% / 100.00%"],
-    ["CWRU: 3 HP (main text)", "1,660", "100.00%", "100.00%", "100.00%", "100.00% / 100.00% / 100.00%"],
+    ["CWRU: 0 HP", "828", "92.27%", "93.28%", "90.78%", "100.00% / 98.91% / 68.84%"],
+    ["CWRU: 1 HP", "946", "100.00%", "100.00%", "100.00%", "100.00% / 100.00% / 99.89%"],
+    ["CWRU: 2 HP", "944", "100.00%", "100.00%", "100.00%", "100.00% / 100.00% / 100.00%"],
+    ["CWRU: 3 HP (main text)", "949", "100.00%", "100.00%", "100.00%", "100.00% / 100.00% / 100.00%"],
 ]
 for i, row in enumerate(d1b): table_row(t1b.rows[i+1], row)
 doc.add_paragraph()
@@ -612,16 +647,18 @@ body(doc, (
     "mechanically bounded by the probability mass left after T-hat, but no longer the exact "
     "r=-1.000 that the classical F=1-T formulation guarantees by construction, and consistent with "
     "F-hat tracking real evidence for a specific competing class. As Section 3.5 notes, this "
-    "departure from -1 rules out algebraic redundancy but not a strong linear relationship: the "
+    "departure from -1 specifically rules out the classical F=1-T identity, not every possible "
+    "algebraic or nonlinear dependence, and a strong linear relationship remains: the "
     "variance inflation factor between T-hat and F-hat is VIF = 1/(1-r^2) = 5.8, indicating real "
     "but moderate collinearity (a conventional rule of thumb flags VIF > 10 as severe), which "
     "warrants caution when interpreting the sign of any partial association involving both "
     "variables (Section 4.3). All four indicators separate errors from correct predictions with "
     "small-to-moderate effect sizes (|d| approx. 0.6-1.0), reflecting that JNU errors are pervasive "
-    "rather than confined to a narrow high-uncertainty tail. On CWRU, all four indicators, and their "
-    "correlation with error, are undefined: with zero misclassifications (Section 4.1) there is no "
-    "error variance for any indicator to explain, so r(T-hat, F-hat) = -0.992 there describes the "
-    "indicators' own relationship but has no accompanying error-correlation to report."
+    "rather than confined to a narrow high-uncertainty tail. On CWRU, the indicators themselves "
+    "remain well-defined, but their correlation with error is undefined: with zero misclassifications "
+    "on the main-text 3 HP fold (Section 4.1) there is no error variance for any indicator to "
+    "explain, so r(T-hat, F-hat) = -0.990 there describes the indicators' own relationship but has "
+    "no accompanying error-correlation to report."
 ))
 
 # Table 2
@@ -634,7 +671,7 @@ d2 = [
     ["F-hat",  "+0.585","+0.276"],
     ["I1-hat (predictive entropy)", "+1.006","+0.443"],
     ["I2-hat (decision disagreement)", "+0.642","+0.301"],
-    ["r(T-hat, F-hat): JNU -0.910 (VIF=5.8) | CWRU -0.992 (undefined vs. error, zero errors)", "", ""],
+    ["r(T-hat, F-hat): JNU -0.910 (VIF=5.8) | CWRU -0.990 (indicators defined; error-correlation undefined, zero errors)", "", ""],
 ]
 for i, row in enumerate(d2): table_row(t2.rows[i+1], row)
 doc.add_paragraph()
@@ -708,34 +745,57 @@ body(doc, (
     "(predictive entropy) and I2-hat (decision disagreement) against three baselines evaluated on "
     "the same ensemble predictions: max confidence (1 - T-hat), margin (1 - (T-hat - F-hat)), and "
     "the standalone Logistic Regression model's own confidence (using LR's predictions and errors "
-    "directly, not the ensemble's). Table 3b reports the area under the risk-coverage curve (AURC; "
-    "lower is better) over the full coverage range, and accuracy at a fixed 50% coverage reference "
-    "point. I1-hat (AURC=0.3915) is the best-performing selector among those built from the RF+XGB+LR "
-    "ensemble's own output, modestly ahead of max confidence (0.4050) and margin (0.4220), and "
-    "substantially ahead of I2-hat (0.5111, the worst of the five) -- Figure 5 shows I2-hat is "
-    "particularly poor at low coverage, where the instances it deems most reliable (highest vote "
-    "agreement) still carry roughly 75-80% risk. However, standalone "
-    "Logistic Regression's own confidence (AURC=0.3773) outperforms every ensemble-based selector, "
-    "including I1-hat -- because LR itself generalizes to the unseen speed far better than the "
-    "ensemble (Section 4.1), its confidence is a better-calibrated signal on this benchmark than any "
-    "score derived from the full three-model ensemble. This is a boundary condition for the "
-    "practical value of the proposed decomposition: it improves on naive ensemble confidence, but "
-    "the added complexity of a three-model ensemble plus a four-indicator decomposition does not "
-    "clearly beat simply deploying the single best-generalizing base model and using its own "
-    "confidence for selective prediction under this distribution shift."
+    "directly, not the ensemble's). Because I2-hat takes only four discrete values, a plain sort "
+    "would break ties among thousands of instances in an arbitrary, unstated order; AURC and "
+    "accuracy figures below use each tied group's expected risk under uniform-random tie-breaking "
+    "instead (baseline_comparison_jnu.py). Table 3b reports the area under the risk-coverage curve "
+    "(AURC; lower is better) over the full coverage range, and accuracy at a fixed 50% coverage "
+    "reference point. I1-hat (AURC=0.3915) is the best-performing selector among those built from "
+    "the RF+XGB+LR ensemble's own output, modestly ahead of max confidence (0.4050) and margin "
+    "(0.4220), and ahead of I2-hat (0.4452, the worst of the five). However, standalone Logistic "
+    "Regression's own confidence (AURC=0.3773) achieves a lower AURC than every ensemble-based "
+    "selector, including I1-hat -- consistent with LR itself generalizing to the unseen speed far "
+    "better than the ensemble (Section 4.1); we report this as a lower AURC, not as evidence of "
+    "better probability calibration, which we did not separately evaluate. This is a boundary "
+    "condition for the practical value of the proposed decomposition: it improves on naive ensemble "
+    "confidence, but the added complexity of a three-model ensemble plus a four-indicator "
+    "decomposition does not clearly beat simply deploying the single best-generalizing base model "
+    "and using its own confidence for selective prediction under this distribution shift."
+))
+body(doc, (
+    "A further question is whether treating I1-hat and I2-hat as two SEPARATE axes -- rather than "
+    "one score -- can outperform I1-hat alone through a genuinely joint decision rule, rather than "
+    "the simple linear sum tested above. We tested this directly: a grid search over all (tau1, "
+    "tau2) pairs for the AND-rule \"accept if I1-hat <= tau1 and I2-hat <= tau2\", taking the "
+    "coverage-wise lower-risk envelope across the entire grid -- an oracle upper bound on what any "
+    "joint rule over these two axes could achieve on this test set -- gives AURC=0.3923, "
+    "statistically indistinguishable from, and not better than, I1-hat alone (0.3915). Even this "
+    "best-case joint rule does not demonstrate an advantage from treating aleatoric and epistemic "
+    "uncertainty as separate decision axes on JNU. Taken together with the ensemble-vs-LR-alone "
+    "finding above, this directly bears on what the neutrosophic framing contributes here: the four "
+    "indicators are computed with entirely conventional tools (top-two ensemble probabilities, "
+    "Shannon entropy, vote disagreement), and neither a linear combination nor an oracle-optimal "
+    "joint threshold rule over them improves selective-classification performance beyond the single "
+    "best conventional score (entropy) on this benchmark. What the framing offers, on the present "
+    "evidence, is an organizational and interpretive structure -- separating confidence magnitude, "
+    "competing-class evidence, and two forms of indeterminacy for diagnostic purposes (Section 4.5's "
+    "hidden-risk zone remains informative as a qualitative flag even where it does not improve AURC) "
+    "-- rather than a demonstrated quantitative advantage over conventional uncertainty "
+    "quantification, a distinction we did not draw sharply enough in earlier framing of this work."
 ))
 
 # Table 3b
 caption(doc, "Table 3b. Selective-classification baseline comparison on JNU: area under the risk-coverage curve (AURC, lower is better) and accuracy at 50% coverage")
-t3b = doc.add_table(rows=6, cols=3); t3b.style = "Table Grid"
+t3b = doc.add_table(rows=7, cols=3); t3b.style = "Table Grid"
 t3b.alignment = WD_TABLE_ALIGNMENT.CENTER
 table_row(t3b.rows[0], ["Selector", "AURC", "Accuracy @ 50% coverage"], bold=True)
 d3b = [
     ["Max confidence (T-hat)", "0.4050", "53.40%"],
     ["Margin (T-hat - F-hat)", "0.4220", "50.32%"],
     ["I1-hat: predictive entropy", "0.3915", "55.82%"],
-    ["I2-hat: decision disagreement", "0.5111", "50.77%"],
-    ["I1-hat + I2-hat (combined)", "0.3968", "55.58%"],
+    ["I2-hat: decision disagreement", "0.4452", "52.09%"],
+    ["I1-hat + I2-hat (linear combination)", "0.3968", "55.58%"],
+    ["I1-hat AND I2-hat (oracle joint rule, best case)", "0.3923", "55.84%"],
 ]
 for i, row in enumerate(d3b): table_row(t3b.rows[i+1], row)
 doc.add_paragraph()
@@ -749,14 +809,16 @@ body(doc, (
     "computable but has nothing to explain). We evaluated I2-hat (vote disagreement among RF, "
     "XGBoost, LR) using the multivariate partial correlation protocol of Section 3.6, controlling "
     "for a genuinely three-dimensional [T-hat, F-hat, I1-hat] set (Section 3.5). Partial "
-    "r(I2-hat, error | T-hat, F-hat, I1-hat) = +0.017 (p=0.20): correctly signed but not "
-    "statistically distinguishable from zero, given I1-hat already contains a between-model "
-    "disagreement component (Section 3.5) that captures much of what I2-hat could add linearly. "
-    "Agreement is far from unanimous under genuine distribution shift (unanimous 1,655/5,859 = "
-    "28.2%, error rate 28.7%; two-of-three 3,203/5,859 = 54.7%, error rate 72.9%; one-of-three 976, "
-    "error rate 66.9%; a zero-of-three group of 25 instances, error rate 64.0%) -- disagreement is "
-    "the norm rather than the exception here, yet this does not translate into a significant "
-    "independent linear contribution once T-hat, F-hat and I1-hat are accounted for."
+    "r(I2-hat, error | T-hat, F-hat, I1-hat) = +0.017 (p=0.20, a nominal value computed under an "
+    "independence assumption the 50%-overlapping windows do not fully satisfy, Section 3.6): "
+    "correctly signed but too small relative to its uncertainty to treat as a reliable independent "
+    "contribution, given I1-hat already contains a between-model disagreement component (Section "
+    "3.5) that captures much of what I2-hat could add linearly. Agreement is far from unanimous "
+    "under genuine distribution shift (unanimous 1,655/5,859 = 28.2%, error rate 28.7%; two-of-three "
+    "3,203/5,859 = 54.7%, error rate 72.9%; one-of-three 976, error rate 66.9%; a zero-of-three "
+    "group of 25 instances, error rate 64.0%) -- disagreement is the norm rather than the exception "
+    "here, yet this does not translate into a clearly nonzero independent linear contribution once "
+    "T-hat, F-hat and I1-hat are accounted for."
 ))
 
 # Table 4
@@ -825,27 +887,36 @@ body(doc, (
     "testing errors (a tautological median-split test, an unweighted Cohen's d, incorrect degrees "
     "of freedom, and a partial correlation that controlled for F-hat alone rather than T-hat and "
     "F-hat jointly); (3) a resampling-order artifact (SMOTE applied before feature scaling) and an "
-    "algebraically degenerate abstention \"utility\" metric; and (4), the most consequential, a "
-    "CWRU file-to-class mapping error present from before this study in which the nominal \"Ball\" "
-    "and \"Inner\" classes were both Inner Race data at different sampling rates, and the real "
-    "Ball-fault files had never been used (Section 3.1). We discuss the substantive findings of the "
-    "fully corrected pipeline below."
+    "algebraically degenerate abstention \"utility\" metric; (4) a CWRU file-to-class mapping error "
+    "present from before this study in which the nominal \"Ball\" and \"Inner\" classes were both "
+    "Inner Race data at different sampling rates, and the real Ball-fault files had never been used "
+    "(Section 3.1); and (5) a second, independent CWRU sampling-rate issue in which the Normal class "
+    "(recorded at 48 kHz) was windowed identically to the fault classes (12 kHz) without resampling, "
+    "giving Normal windows one-quarter the physical duration of a fault window. We discuss the "
+    "substantive findings of the fully corrected pipeline below."
 ))
 body(doc, (
     "The most consequential single result of this study is that CWRU, once its classes are "
-    "correctly defined, is not a source of uncertainty-decomposition evidence at all: the ensemble "
-    "reaches 100.00% accuracy holding out any of its four loads (Table 1b), consistent with the "
-    "literature's general characterization of CWRU as a near-perfectly separable laboratory "
-    "benchmark once genuinely distinct fault classes are used [3]. This reframes CWRU's role in the "
-    "study from a second uncertainty-decomposition testbed to a positive control confirming the "
-    "pipeline and features work correctly when classes are well-defined and conditions are similar "
+    "correctly defined and consistently sampled, is not a source of uncertainty-decomposition "
+    "evidence at all: the ensemble reaches 100.00% accuracy on three of its four held-out loads "
+    "(Table 1b), consistent with the literature's general characterization of CWRU as a "
+    "near-perfectly separable laboratory benchmark once genuinely distinct fault classes are used "
+    "[3]. This is not unconditional, however: holding out 0 HP instead gives 92.27%, driven mainly "
+    "by Logistic Regression (68.84% on that fold), so CWRU is not trivially perfect for every "
+    "possible held-out load, and a claim of perfect generalization should be scoped to the specific "
+    "folds where it holds. This reframes CWRU's role in the study from a second uncertainty-"
+    "decomposition testbed to a mostly-positive control confirming the pipeline and features work "
+    "correctly when classes are well-defined, consistently sampled, and conditions are similar "
     "(CWRU's motor speed varies only about 4% with load, Section 3.1). All of this paper's "
-    "substantive uncertainty-decomposition findings therefore come from JNU alone, which is also "
-    "why we no longer report paired CWRU/JNU comparisons in Sections 4.2-4.5."
+    "substantive uncertainty-decomposition findings therefore come from JNU alone (using the "
+    "zero-error 3 HP fold as CWRU's main-text condition), which is also why we no longer report "
+    "paired CWRU/JNU comparisons in Sections 4.2-4.5."
 ))
 body(doc, (
-    "On JNU, holding out 1000 rpm gives 40.64% accuracy -- far below the 82.2% previously reported "
-    "under a condition-mixed split, and even below the 50.03% a trivial majority-class predictor "
+    "On JNU, holding out 1000 rpm gives 40.64% accuracy -- far below the 82.6% we reproduce, and "
+    "report with its own log for reproducibility (Section 3.6), by re-running the original "
+    "condition-mixed random-split pipeline that predates the leave-one-condition-out redesign, and "
+    "even below the 50.03% a trivial majority-class predictor "
     "achieves (Section 4.1). The multi-condition check (Table 1b) shows this is JNU's best-case "
     "fold: holding out 600 or 800 rpm instead gives 24.66% and 27.10% respectively, so a single "
     "headline number for JNU understates its true generalization difficulty. We cannot fully "
@@ -888,19 +959,36 @@ body(doc, (
     "shows a moderate, positive linear contribution beyond T-hat and F-hat jointly (partial "
     "r=+0.217) and the largest median-split error-rate gap of any indicator (+30.4 pp), and is the "
     "best-performing indicator in the Section 4.4 baseline comparison among those built from the "
-    "ensemble's own output. Decision disagreement I2-hat, by contrast, is small in magnitude and not "
-    "statistically significant once T-hat, F-hat and I1-hat are controlled for, and is the weakest "
-    "selective-classification indicator tested (Section 4.4) -- plausibly because I1-hat's "
-    "algebraic disagreement component already captures much of what a separate vote-disagreement "
-    "measure could add linearly (Section 3.5). Its practically large hidden-risk gap (28.2% vs. "
-    "63.7% error, Section 4.5) nonetheless shows it is not entirely uninformative, illustrating that "
-    "a simple stratified comparison and a linear partial-correlation test can disagree about the "
-    "same underlying pattern -- a reason to report both rather than either alone. Most strikingly, "
-    "standalone Logistic Regression confidence outperforms every indicator derived from the full "
-    "three-model ensemble (Section 4.4): the added complexity of ensembling plus a four-indicator "
-    "neutrosophic decomposition does not yet demonstrate a practical advantage over simply deploying "
-    "the single model that generalizes best and trusting its own confidence, at least for selective "
-    "prediction under this particular distribution shift."
+    "ensemble's own output. Decision disagreement I2-hat, by contrast, is small in magnitude and its "
+    "partial contribution is not clearly nonzero once T-hat, F-hat and I1-hat are controlled for, "
+    "and it is the weakest selective-classification indicator tested (Section 4.4) -- plausibly "
+    "because I1-hat's algebraic disagreement component already captures much of what a separate "
+    "vote-disagreement measure could add linearly (Section 3.5). Its practically large hidden-risk "
+    "gap (28.2% vs. 63.7% error, Section 4.5) nonetheless shows it is not entirely uninformative, "
+    "illustrating that a simple stratified comparison and a linear partial-correlation test can "
+    "disagree about the same underlying pattern -- a reason to report both rather than either alone."
+))
+body(doc, (
+    "Section 4.4 tested, and did not find, two further routes to a demonstrated advantage from the "
+    "specifically neutrosophic multi-component framing: standalone Logistic Regression confidence "
+    "outperforms every indicator derived from the full three-model ensemble (lower AURC than "
+    "I1-hat), and an oracle joint decision rule over I1-hat and I2-hat -- searched exhaustively over "
+    "a threshold grid, an upper bound on what any such joint rule could achieve on this test set -- "
+    "does not improve on I1-hat used alone. We take this seriously rather than explain it away: the "
+    "four indicators are computed with entirely conventional tools (the ensemble's top-two class "
+    "probabilities, Shannon entropy of its averaged distribution, and base-learner vote "
+    "disagreement), training and combination use no rule specific to neutrosophic logic, and on the "
+    "evidence in this paper, neither a linear nor an oracle-optimal joint combination of the two "
+    "indeterminacy axes beats the single best conventional score. What the framing offers here is an "
+    "organizational and diagnostic structure -- separating confidence magnitude, competing-class "
+    "evidence, and two qualitatively different sources of indeterminacy for interpretation, and "
+    "surfacing the hidden-risk zone as a qualitative flag even where it does not move the AURC "
+    "ranking -- rather than a demonstrated quantitative improvement over conventional uncertainty "
+    "quantification. Establishing the latter would require a decision or abstention rule "
+    "specifically justified by, and outperforming confidence, margin, and entropy at, matched "
+    "coverage or cost -- a bar this study's baseline comparison and joint-rule test did not clear, "
+    "and one we flag as the central open question for future work on this framework rather than "
+    "claim to have already answered."
 ))
 body(doc, (
     "Limitations. Both datasets use artificially induced faults of fixed severity; real-world "
@@ -937,17 +1025,20 @@ body(doc, (
     "This paper evaluated neutrosophic ensemble classification for uncertainty-aware bearing fault "
     "detection on two complementary benchmarks under a leakage-free leave-one-condition-out "
     "train/test protocol, with predictive entropy I1-hat replacing an earlier, algebraically "
-    "redundant aleatoric indicator, and with a corrected CWRU file-to-class mapping in which the "
-    "nominal \"Ball\" and \"Inner\" classes had both actually been Inner Race data at different "
-    "sampling rates. Correcting this mapping raises CWRU accuracy to 100.00%, confirmed across all "
-    "four possible held-out loads (99.92-100.00%), and reframes CWRU as a positive control rather "
-    "than a source of uncertainty-decomposition evidence, since it leaves no errors for any "
-    "indicator to explain. On JNU (holding out 1000 rpm), accuracy is 40.64% -- below the 50.03% "
-    "achieved by a trivial majority-class predictor, and, per a multi-condition check holding out "
-    "each available speed in turn, JNU's best-case fold rather than its average one (600 rpm: "
-    "24.66%; 800 rpm: 27.10%). Logistic Regression generalizes markedly better than the tree-based "
-    "ensembles under this shift (57.91% vs. 30.07% RF, 40.72% XGBoost) and, using only its own "
-    "confidence, outperforms every ensemble-based selective-classification indicator tested."
+    "redundant aleatoric indicator, and with two independent CWRU corrections: a file-to-class "
+    "mapping error in which the nominal \"Ball\" and \"Inner\" classes had both actually been Inner "
+    "Race data at different sampling rates, and a sampling-rate mismatch in which the Normal class "
+    "(48 kHz) was windowed without resampling to match the fault classes (12 kHz). Correcting both "
+    "raises CWRU accuracy to 100.00% on three of its four held-out loads, dropping to 92.27% when "
+    "0 HP is held out instead, and reframes CWRU as a mostly-positive control rather than a source "
+    "of uncertainty-decomposition evidence on its zero-error main-text fold. On JNU (holding out "
+    "1000 rpm), accuracy is 40.64% -- below the 50.03% achieved by a trivial majority-class "
+    "predictor, below the 82.6% we reproduce and log under the original condition-mixed split, and, "
+    "per a multi-condition check holding out each available speed in turn, JNU's best-case fold "
+    "rather than its average one (600 rpm: 24.66%; 800 rpm: 27.10%). Logistic Regression generalizes "
+    "markedly better than the tree-based ensembles under this shift (57.91% vs. 30.07% RF, 40.72% "
+    "XGBoost) and, using only its own confidence, achieves a lower selective-classification AURC "
+    "than every ensemble-based indicator tested."
 ))
 body(doc, (
     "On JNU, T-hat and F-hat remain measurably non-redundant (r=-0.910, VIF=5.8), and a positive "
@@ -960,32 +1051,51 @@ body(doc, (
 ))
 body(doc, (
     "Decision disagreement I2-hat -- operationalized as base-learner vote disagreement -- shows a "
-    "small, non-significant partial contribution beyond T-hat, F-hat and I1-hat on JNU (partial "
-    "r=+0.017, p=0.20), and is the weakest of five indicators compared in a selective-classification "
-    "baseline analysis (Section 4.4). Its hidden-risk zone (28.2% vs. 63.7% error) nonetheless shows "
-    "a large practical gap, illustrating that a simple stratified comparison and a linear "
-    "partial-correlation test can disagree about the same underlying pattern. We could not compare "
-    "this behavior against CWRU, since the corrected CWRU dataset has no errors to analyze -- a "
-    "genuine limitation of this study's two-benchmark design rather than a claim that I2-hat "
-    "generalizes or fails to generalize across datasets."
+    "small partial contribution beyond T-hat, F-hat and I1-hat on JNU that is not clearly "
+    "distinguishable from zero (partial r=+0.017, p=0.20), and is the weakest of five indicators "
+    "compared in a selective-classification baseline analysis (Section 4.4), including a "
+    "tie-corrected AURC of 0.4452 -- worse than max confidence or margin alone. Its hidden-risk zone "
+    "(28.2% vs. 63.7% error) nonetheless shows a large practical gap, illustrating that a simple "
+    "stratified comparison and a linear partial-correlation test can disagree about the same "
+    "underlying pattern. We further tested an oracle joint decision rule over I1-hat and I2-hat "
+    "(the best case across an exhaustive threshold grid) and found it does not improve on I1-hat "
+    "used alone (AURC 0.3923 vs. 0.3915) -- direct evidence that treating aleatoric and epistemic "
+    "indeterminacy as two separate decision axes does not yet demonstrate a selective-classification "
+    "advantage on this benchmark, beyond what predictive entropy alone already provides. We could "
+    "not compare I2-hat's behavior against CWRU, since the corrected CWRU dataset has almost no "
+    "errors to analyze -- a genuine limitation of this study's two-benchmark design."
 ))
 body(doc, (
-    "These results support treating T-hat/F-hat non-redundancy and I1-hat's threshold-based "
-    "behavior as the more reliable signals in this refined neutrosophic decomposition, and I2-hat as "
-    "a comparatively weak one on the evidence available here, while cautioning that the proposed "
-    "ensemble-based decomposition as a whole did not outperform a much simpler baseline -- standalone "
-    "Logistic Regression confidence -- for selective prediction on JNU. Beyond the decomposition "
-    "itself, this study's clearest practical findings are the magnitude of JNU's cross-speed "
-    "generalization failure, worse than a trivial baseline and understated by any single held-out "
-    "fold; the advantage of a simple linear model under that shift; and a plausible physical "
-    "contributor in the mismatch between window duration and shaft revolution count across the two "
-    "datasets' sampling rates. Methodologically, the corrections made in preparing this manuscript "
-    "-- fixing window-level data leakage, several statistical testing errors, a resampling-order "
-    "artifact, a degenerate abstention metric, and, most importantly, a CWRU file-to-class mapping "
-    "error that had gone undetected through multiple earlier rounds of numerical correction -- argue "
-    "for verifying dataset file-to-label mappings against primary source documentation, in addition "
-    "to leakage-free evaluation and algebraic-independence checks, as standard practice for bearing "
-    "fault detection studies using public benchmark datasets."
+    "Taken together, these results support treating T-hat/F-hat non-redundancy and I1-hat's "
+    "threshold-based behavior as the more reliable signals in this refined decomposition, and I2-hat "
+    "as a comparatively weak one on the evidence available here. More importantly, neither a linear "
+    "combination nor an oracle-optimal joint rule over I1-hat and I2-hat improves on I1-hat alone, "
+    "and standalone Logistic Regression confidence -- a single conventional model with no "
+    "neutrosophic structure at all -- achieves a better selective-classification AURC than the full "
+    "ensemble-based decomposition. We take this as an honest boundary condition rather than a result "
+    "to explain away: on the evidence in this paper, the specifically neutrosophic contribution is "
+    "conceptual and organizational -- decomposing ensemble output into confidence magnitude, "
+    "competing-class evidence, and two distinct sources of indeterminacy for interpretation -- and "
+    "we have not yet demonstrated a quantitative decision-making advantage over conventional "
+    "confidence, margin, or entropy-based uncertainty quantification. Demonstrating one would require "
+    "a decision or abstention rule specifically justified by, and shown to outperform simpler "
+    "alternatives at matched coverage or cost, which we identify as the central open question for "
+    "future work on this framework."
+))
+body(doc, (
+    "Beyond the decomposition itself, this study's clearest practical findings are the magnitude of "
+    "JNU's cross-speed generalization failure, worse than a trivial baseline and understated by any "
+    "single held-out fold; the advantage of a simple linear model under that shift; and a plausible "
+    "physical contributor in the mismatch between window duration and shaft revolution count across "
+    "the two datasets' sampling rates. Methodologically, the corrections made in preparing this "
+    "manuscript -- fixing window-level data leakage, several statistical testing errors (including "
+    "an arbitrary tie-breaking rule in a selective-classification metric), a resampling-order "
+    "artifact, a degenerate abstention metric, and two independent CWRU sampling-rate errors that "
+    "had gone undetected through multiple earlier rounds of numerical correction -- argue for "
+    "verifying every dataset file's sampling rate and class label against primary source "
+    "documentation, in addition to leakage-free evaluation, algebraic-independence checks, and "
+    "explicit tie-handling in any ranking-based metric, as standard practice for bearing fault "
+    "detection studies using public benchmark datasets."
 ))
 
 # AUTHOR CONTRIBUTIONS
@@ -1004,9 +1114,11 @@ heading(doc, "Data Availability Statement")
 body(doc, (
     "CWRU Bearing Dataset: https://engineering.case.edu/bearingdatacenter. "
     "JNU Bearing Dataset: https://github.com/ClarkGableWang/JNU-Bearing-Dataset. "
-    "Python pipeline for both datasets, including the leave-one-condition-out split used in this "
-    "revision, is publicly available in a GitHub repository (link in the published version) and "
-    "the manuscript's supplementary materials."
+    "Python pipeline (feature extraction, the corrected CWRU file-to-class mapping, the "
+    "leave-one-condition-out split, the multi-condition robustness check, and the selective-"
+    "classification baseline comparison) is publicly available at "
+    "https://github.com/mleyvaz/CWRU-JNU-NeutroSense, including a manifest of the exact file-to-"
+    "class-to-load/speed mapping used for both datasets."
 ), indent=False)
 
 heading(doc, "Conflicts of Interest")
@@ -1023,17 +1135,18 @@ refs = [
     ("6","A. Kumar, C. P. Gandhi, Y. Zhou, H. Tang, and J. Xiang, 'Fault diagnosis of rolling element bearing based on symmetric cross entropy of neutrosophic sets,' Measurement, vol. 152, p. 107318, 2020. doi: 10.1016/j.measurement.2019.107318."),
     ("7","K. A. Loparo, 'Bearings vibration data set,' Case Western Reserve University Bearing Data Center, 2003. [Online]. Available: https://engineering.case.edu/bearingdatacenter"),
     ("8","C. Wang, 'JNU-Bearing-Dataset: Bearing fault data collected by Jiangnan University at variable rotational speeds,' GitHub repository, 2022. [Online]. Available: https://github.com/ClarkGableWang/JNU-Bearing-Dataset"),
-    ("9","M. Leyva-Vazquez, L. Cevallos-Torres, A. Matheu Perez, and F. Smarandache, 'Uncertainty-Aware IoT Intrusion Detection Using Neutrosophic Ensemble Classification: Disentangling Confidence Magnitude from Uncertainty Geometry,' Eng. Proc. (MDPI), IEEE ICEIB 2026, Tamkang Univ., New Taipei, Taiwan, 2026. doi: 10.5281/zenodo.19368604."),
+    ("9","M. Leyva-Vazquez, L. Cevallos-Torres, A. Matheu Perez, and F. Smarandache, 'Uncertainty-Aware IoT Intrusion Detection Using Neutrosophic Ensemble Classification: Disentangling Confidence Magnitude from Uncertainty Geometry,' software/preprint deposit, Zenodo, 2026, doi: 10.5281/zenodo.19368604; submitted to IEEE ICEIB 2026 Engineering Proceedings (MDPI), Tamkang Univ., New Taipei, Taiwan -- publication record not independently confirmed at the time of writing."),
     ("10","Y. Geifman and R. El-Yaniv, 'Selective classification for deep neural networks,' in Adv. Neural Inf. Process. Syst. (NeurIPS), vol. 30, pp. 4885-4894, 2017."),
     ("11","B. Lakshminarayanan, A. Pritzel, and C. Blundell, 'Simple and scalable predictive uncertainty estimation using deep ensembles,' in Adv. Neural Inf. Process. Syst., vol. 30, 2017."),
     ("12","N. V. Chawla et al., 'SMOTE: Synthetic minority over-sampling technique,' J. Artif. Intell. Res., vol. 16, pp. 321-357, 2002."),
     ("13","L. Breiman, 'Random forests,' Mach. Learn., vol. 45, no. 1, pp. 5-32, 2001."),
     ("14","T. Chen and C. Guestrin, 'XGBoost: A scalable tree boosting system,' in Proc. KDD 2016, pp. 785-794, 2016."),
     ("15","F. Smarandache, 'n-Valued Refined Neutrosophic Logic and Its Applications to Physics,' Prog. Phys., vol. 4, pp. 143-146, 2013. [Online]. Available: https://arxiv.org/abs/1407.1041"),
+    ("16","A. Kendall and Y. Gal, 'What uncertainties do we need in Bayesian deep learning for computer vision?,' in Adv. Neural Inf. Process. Syst. (NeurIPS), vol. 30, 2017."),
 ]
 for n, t in refs:
     ref(doc, n, t)
 
-out_path = os.path.join(OUT, "CWRU_JNU_NeutroSense_INGENIUS_v6.docx")
+out_path = os.path.join(OUT, "CWRU_JNU_NeutroSense_v7.docx")
 doc.save(out_path)
-print(f"Paper v6 saved: {out_path}")
+print(f"Paper v7 saved: {out_path}")

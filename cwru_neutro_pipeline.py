@@ -121,6 +121,22 @@ FEATURE_NAMES = [
     "kurtosis", "skewness", "peak_to_peak", "variance", "energy"
 ]
 
+# NOTE (fixed 2026-09-17, external review): CWRU's "Normal Baseline Data"
+# files (97-100) are recorded at 48 kHz, while the 12k Drive End fault files
+# used here (105-108, 118-121, 130-133) are recorded at 12 kHz -- confirmed
+# both by sample-count arithmetic (97-100 have ~4x the samples of a
+# comparable ~10 s fault recording at the same nominal duration) and by the
+# published literature describing a distinct "48k normal-baseline" category
+# of this dataset. Applying the same fixed-length window (1,024 samples) to
+# both without resampling would give Normal windows 1/4 the physical
+# duration of fault windows -- a sampling-rate confound between the Normal
+# class and every fault class, independent of the Ball/Inner fix above. We
+# resample the four Normal files from 48 kHz to 12 kHz (decimate by 4, with
+# the anti-aliasing low-pass filtering scipy.signal.decimate applies) before
+# windowing, so every class is windowed from a consistent 12 kHz signal.
+NORMAL_48K_FILES = {"97.mat", "98.mat", "99.mat", "100.mat"}
+
+
 def mat_to_de_signal(fpath):
     """Extract the DE (drive-end) signal matching THIS file's own id.
     Some CWRU .mat files (e.g. 99.mat) bundle an extra channel from an
@@ -132,11 +148,20 @@ def mat_to_de_signal(fpath):
     mat = loadmat(fpath)
     file_id = os.path.splitext(os.path.basename(fpath))[0]
     own_key = next((k for k in mat.keys() if "DE_time" in k and file_id in k), None)
+    fname = os.path.basename(fpath)
     if own_key is not None:
-        return mat[own_key].flatten()
+        sig = mat[own_key].flatten()
+        if fname in NORMAL_48K_FILES:
+            from scipy.signal import decimate
+            sig = decimate(sig, 4, ftype="iir", zero_phase=True)
+        return sig
     de_keys = [k for k in mat.keys() if "DE_time" in k]
     if de_keys:
-        return mat[de_keys[0]].flatten()
+        sig = mat[de_keys[0]].flatten()
+        if fname in NORMAL_48K_FILES:
+            from scipy.signal import decimate
+            sig = decimate(sig, 4, ftype="iir", zero_phase=True)
+        return sig
     keys = [k for k in mat.keys() if not k.startswith("_")]
     return mat[keys[0]].flatten()
 

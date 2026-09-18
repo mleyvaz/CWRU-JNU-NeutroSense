@@ -33,13 +33,41 @@ OUT = os.path.dirname(os.path.abspath(__file__))
 
 def aurc(scores_ascending_is_confident, errors):
     """scores_ascending_is_confident: lower value = more confident (accept first).
-    Returns (AURC, acc_at_50pct_coverage)."""
-    order = np.argsort(scores_ascending_is_confident)
+    Returns (AURC, acc_at_50pct_coverage).
+
+    NOTE (fixed 2026-09-17, external review): a plain np.argsort breaks ties
+    between equal scores using array order, which is an arbitrary and
+    unstated tie-break -- consequential here because I2_hat only takes 4
+    discrete values, so it has large tie groups (e.g. all 1,655 unanimous-
+    agreement JNU instances share one score). We instead compute the risk
+    within each tie group as its EXPECTED value under uniform-random
+    tie-breaking: for a group of m tied instances with e errors entered
+    after (before_n, before_err) instances have already been accepted, the
+    expected cumulative error after accepting j of the m (drawn without
+    replacement) is before_err + j*e/m, matching the closed-form expectation
+    over random permutations rather than any single arbitrary order."""
+    order = np.argsort(scores_ascending_is_confident, kind="stable")
+    scores_sorted = np.asarray(scores_ascending_is_confident)[order]
     errors_sorted = errors[order]
     n = len(errors_sorted)
-    cum_err = np.cumsum(errors_sorted)
+
+    cum_err_expected = np.empty(n, dtype=float)
+    before_n, before_err = 0, 0.0
+    i = 0
+    while i < n:
+        j = i
+        while j < n and scores_sorted[j] == scores_sorted[i]:
+            j += 1
+        m = j - i
+        e = errors_sorted[i:j].sum()
+        for k in range(1, m + 1):
+            cum_err_expected[i + k - 1] = before_err + k * e / m
+        before_n += m
+        before_err += e
+        i = j
+
     coverages = np.arange(1, n + 1) / n
-    risks = cum_err / np.arange(1, n + 1)
+    risks = cum_err_expected / np.arange(1, n + 1)
     area = np.trapezoid(risks, coverages) if hasattr(np, "trapezoid") else np.trapz(risks, coverages)
     idx50 = int(n * 0.5) - 1
     acc50 = 1 - risks[idx50]
