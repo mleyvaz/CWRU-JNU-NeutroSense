@@ -861,6 +861,105 @@ body(doc, (
     "re-verify."
 ))
 
+heading(doc, "4.6. Four Extensions Toward a Demonstrated Neutrosophic Advantage", level=2)
+body(doc, (
+    "Sections 4.4-4.5 establish an honest negative result: on the evidence gathered so far, neither a "
+    "linear combination nor an oracle joint rule over I1-hat and I2-hat has a demonstrated operational "
+    "advantage over predictive entropy alone. Rather than stop there, we ran four further, genuinely "
+    "novel tests, each targeting a specific weakness in that negative result rather than re-testing the "
+    "same claim: (i) whether a joint rule generalizes under a properly validated protocol, not only as "
+    "a retrospective oracle; (ii) whether the assumed cost asymmetry behind any practical triage "
+    "argument holds when actually measured; (iii) whether I2-hat's weak signal is an artifact of using "
+    "only three, coarsely-disagreeing base learners; and (iv) whether I1-hat and I2-hat respond "
+    "differently to two mechanistically different kinds of perturbation. None of these were run before "
+    "the manuscript's acceptance through ten rounds of adversarial review; we report them here with the "
+    "same log-backed discipline as the rest of the paper."
+))
+body(doc, (
+    "4.6.1. A validated (not oracle) joint decision rule. Every threshold evaluated in Section 4.4, "
+    "including the oracle joint rule, is selected by searching the test set itself -- a valid upper "
+    "bound, but not a genuine test of generalization. We instead split JNU into three, entirely "
+    "disjoint conditions: the ensemble is fit on 600 rpm only, thresholds are selected on 800 rpm "
+    "(validation, never used to fit the ensemble), and the resulting FIXED rule is evaluated, unchanged, "
+    "on 1000 rpm (test, untouched until this final step). Because the ensemble is fit on a single "
+    "condition rather than two, its raw accuracy is not comparable to Table 1 (25.21% on validation, "
+    "22.39% on test -- below chance-level majority baseline, reflecting the harder single-condition fit). "
+    "With an I1-hat-only threshold selected on validation to reach 50% validation coverage, test "
+    "performance is 65.27% coverage at 71.44% risk. With a joint (tau1, tau2) rule grid-selected on "
+    "validation to minimize validation risk at >=50% coverage (using the exact, not coarsely-gridded, "
+    "set of validation entropy values as candidates, to avoid repeating the grid-resolution artifact "
+    "corrected elsewhere in this project), test performance is 65.15% coverage at 71.47% risk -- "
+    "marginally WORSE than the single-score rule, not better. Under honest validation, the joint rule "
+    "does not generalize better than entropy alone; if anything, the extra flexibility very slightly "
+    "overfits the validation condition (validated_decision_rule_jnu.py)."
+))
+body(doc, (
+    "4.6.2. Measured, not assumed, audit reliability. The triage-cost analysis prepared alongside this "
+    "manuscript (not included in the main text, released with the code) showed that any cost advantage "
+    "of routing by I2-hat depends on an illustrative, ASSUMED difference in how reliably a cheap "
+    "secondary check succeeds on low- versus high-disagreement cases. We replaced that assumption with "
+    "a measured quantity: using the standalone Logistic Regression model's own prediction as a "
+    "zero-additional-cost \"second opinion\" on instances the full ensemble got wrong (stated caveat: LR "
+    "is one of the three votes defining I2-hat itself, so this is not a fully independent audit, and we "
+    "report the result as a first, non-independence-free proxy, not a validated external process). The "
+    "measured correction rate is 47.20% (732/1,551) on the lower-disagreement group and 74.72% "
+    "(473/633) on the higher-disagreement group -- the OPPOSITE direction from every illustrative "
+    "scenario in the triage experiment, where the higher-disagreement group was assumed less reliable "
+    "to audit, not more. Plugged into the same cost model (C_review=5, C_audit=1, C_FN=15), these "
+    "measured probabilities make auditing everyone cheaper than I2-hat-based routing (17,614 vs. "
+    "18,942 arbitrary cost units), reversing the illustrative scenarios' conclusion once real numbers "
+    "replace assumed ones (measured_audit_reliability_jnu.py)."
+))
+body(doc, (
+    "4.6.3. A larger, more diverse ensemble sharpens I2-hat. Limitations (Section 5) already flags "
+    "I2-hat as coarse with only three base learners (four discrete disagreement levels). We rebuilt the "
+    "ensemble with eight base learners (Random Forest, XGBoost, Logistic Regression, SVM, k-NN, "
+    "Gaussian Naive Bayes, Extra Trees, Gradient Boosting; soft-vote average), giving I2-hat nine "
+    "discrete levels instead of four. Individual model accuracies on JNU's 1000 rpm test range widely "
+    "(28.25%-75.66%, SVM generalizing best), and the 8-model soft-vote ensemble reaches 46.24% -- both "
+    "figures from a different ensemble configuration than Table 1's RF+XGB+LR and not intended to "
+    "replace it. With eight models, I2-hat's partial correlation with error, controlling for T-hat, "
+    "F-hat and I1-hat, becomes r=+0.0712 (p=4.85e-08) -- statistically significant, unlike the original "
+    "three-model ensemble's r=+0.017 (p=0.20, n.s.). I2-hat's own selective-classification AURC improves "
+    "from 0.4452 to 0.3868, and the exact oracle joint rule now improves on I1-hat alone by 0.001490 "
+    "AURC (0.365362 vs. 0.363872) -- about 32 times the improvement measured with three base learners "
+    "(0.000046), though still a small absolute margin whose operational relevance we have not evaluated. "
+    "A linear I1-hat+I2-hat combination still does not improve on I1-hat alone (0.366987 vs. 0.365362). "
+    "This is the first genuinely positive, non-oracle, statistically significant evidence in this study "
+    "that I2-hat carries real independent information -- conditional on ensemble diversity that the "
+    "main pipeline's three-model design does not provide (larger_ensemble_i2_jnu.py)."
+))
+body(doc, (
+    "4.6.4. Do I1-hat and I2-hat dissociate under different kinds of perturbation? We tested whether "
+    "the two indicators respond differently to (A) synthetic Gaussian noise injected into JNU's own "
+    "1000 rpm signals (an in-distribution, aleatoric-like perturbation seen identically by all base "
+    "learners) versus (B) CWRU signals fed through the JNU-fit scaler and JNU-trained ensemble -- a "
+    "genuine, out-of-distribution input from a different dataset and sensor. Noise injection raised "
+    "both indicators monotonically-ish with intensity (mean I1-hat from 0.5657 to 0.6380, mean I2-hat "
+    "from 0.2975 to 0.4496 at noise level 2.0x), with I2-hat's increase outpacing I1-hat's at higher "
+    "noise (I1-hat plateaus and slightly dips between noise levels 0.5 and 2.0 while I2-hat keeps "
+    "climbing), suggesting some dissociation under this perturbation. The out-of-distribution CWRU "
+    "condition produced an unanticipated result that supersedes the planned comparison: both mean "
+    "I1-hat and mean I2-hat DECREASED relative to the clean JNU baseline (I1-hat: 0.5657 to 0.5570; "
+    "I2-hat: 0.2975 to 0.2010) -- the ensemble became more confident and more internally consistent on "
+    "data it was never trained on, not less. This is a known failure mode of ensemble classifiers under "
+    "covariate shift (confident extrapolation rather than flagged uncertainty), and it means neither "
+    "I1-hat nor I2-hat reliably signals this specific, genuine form of distributional novelty in this "
+    "test. We report this as a materially important limitation rather than omit an inconvenient result: "
+    "whatever the two indicators track, it is not a general-purpose out-of-distribution detector "
+    "(dissociation_aleatoric_epistemic_jnu.py)."
+))
+body(doc, (
+    "Taken together, three of these four extensions (4.6.1, 4.6.2, 4.6.4) reinforce the paper's central "
+    "negative finding through genuinely new mechanisms -- a properly validated rule, a measured rather "
+    "than assumed cost asymmetry, and a real distribution-shift test -- rather than merely repeating it. "
+    "The fourth (4.6.3) provides the first small but statistically significant positive evidence that "
+    "I2-hat carries independent information, conditional on an ensemble more diverse than this paper's "
+    "main three-model design. None of these four extensions has been through the adversarial review "
+    "process the rest of this manuscript underwent; we flag them explicitly as newer, less scrutinized "
+    "material for that reason."
+))
+
 # =============================================================
 # 5. DISCUSSION
 # =============================================================
@@ -1087,6 +1186,20 @@ body(doc, (
     "a decision or abstention rule specifically justified by, and shown to outperform simpler "
     "alternatives at matched coverage or cost, which we identify as the central open question for "
     "future work on this framework."
+))
+body(doc, (
+    "Section 4.6 reports four further, genuinely new tests aimed directly at that open question rather "
+    "than restating it. Three reinforce the negative finding through new mechanisms: a properly "
+    "validated (not oracle) joint rule does not generalize better than entropy alone on truly held-out "
+    "data; a measured, rather than assumed, audit-reliability asymmetry runs in the opposite direction "
+    "from what any practical triage argument requires; and out-of-distribution inputs decrease, rather "
+    "than increase, both indicators, revealing a confident-extrapolation failure mode neither indicator "
+    "flags. The fourth is the first small but statistically significant positive result in this study: "
+    "with eight base learners instead of three, I2-hat's partial contribution becomes significant "
+    "(p=4.85e-08) and the joint rule's improvement over entropy alone grows roughly 32-fold, though "
+    "still to a small absolute margin of unevaluated practical significance. None of Section 4.6's "
+    "results has been through this manuscript's adversarial review process; we report them with the "
+    "same evidentiary standard as the rest of the paper but flag them as newer and less scrutinized."
 ))
 body(doc, (
     "Beyond the decomposition itself, this study's clearest practical findings are the magnitude of "
