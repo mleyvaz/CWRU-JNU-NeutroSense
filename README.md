@@ -3,7 +3,7 @@
 Reproducible pipeline for the manuscript "Neutrosophic Ensemble Classification
 for Uncertainty-Aware Bearing Fault Detection: Evidence from Laboratory and
 Variable-Speed Industrial Benchmarks" (Leyva-Vazquez, Rumbaut Rangel,
-Cevallos-Torres, Matheu Perez, Smarandache).
+Cevallos-Torres, Matheu Perez).
 
 ## What this is
 

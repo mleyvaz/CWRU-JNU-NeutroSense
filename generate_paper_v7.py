@@ -120,7 +120,7 @@ p.paragraph_format.space_after = Pt(8)
 # AUTHORS
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-r = p.add_run("Maikel Leyva-Vazquez 1,2,3*, Dayron Rumbaut Rangel 2, Lorenzo Cevallos-Torres 1, Alexis Matheu Perez 3, Florentin Smarandache 4")
+r = p.add_run("Maikel Leyva-Vazquez 1,2,3*, Dayron Rumbaut Rangel 2, Lorenzo Cevallos-Torres 1, Alexis Matheu Perez 3")
 sfont(r, size=10)
 p.paragraph_format.space_after = Pt(4)
 
@@ -128,7 +128,6 @@ for aff in [
     "1 Universidad de Guayaquil, Guayaquil, Ecuador",
     "2 Universidad Bolivariana del Ecuador, Guayaquil, Ecuador",
     "3 Universidad Bernardo O'Higgins, Santiago, Chile",
-    "4 University of New Mexico, Gallup, NM, USA",
     "* Correspondence: maikel.leyvav@ug.edu.ec | ORCID: 0000-0001-7911-5879",
     "Dayron Rumbaut Rangel ORCID: 0009-0001-9087-0979",
 ]:
@@ -1101,10 +1100,10 @@ body(doc, (
 # AUTHOR CONTRIBUTIONS
 heading(doc, "Author Contributions")
 body(doc, (
-    "Conceptualization, M.L.V. and F.S.; Methodology, M.L.V.; Software, M.L.V.; "
+    "Conceptualization, M.L.V.; Methodology, M.L.V.; Software, M.L.V.; "
     "Validation, M.L.V., D.R.R., L.C.T. and A.M.P.; Formal analysis, M.L.V.; "
-    "Writing -- original draft, M.L.V.; Writing -- review and editing, D.R.R., L.C.T., A.M.P. and "
-    "F.S.; Supervision, F.S. All authors have read and agreed to the published version."
+    "Writing -- original draft, M.L.V.; Writing -- review and editing, D.R.R., L.C.T. and A.M.P.; "
+    "Supervision, M.L.V. All authors have read and agreed to the published version."
 ), indent=False)
 
 heading(doc, "Funding")
