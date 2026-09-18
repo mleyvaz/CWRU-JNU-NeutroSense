@@ -159,6 +159,7 @@ if __name__ == "__main__":
         ("S2: audit much less reliable in high-I2 group",     5, 1, 15, 0.90, 0.30),
         ("S3: same as S2, MORE reliable in low-I2 group too", 5, 1, 15, 0.95, 0.30),
         ("S4: no reliability gap (control)",                 5, 1, 15, 0.70, 0.70),
+        ("S5: gap exists but too small (counterexample)",    5, 1, 15, 0.90, 0.80),
     ]
 
     erg_low = errors_flagged[is_low_i2].sum()
@@ -189,6 +190,18 @@ if __name__ == "__main__":
         cost_audit_all_pes = n_flagged * c_audit + (1 - p_high) * errors_flagged.sum() * c_fn
         cost_audit_all_true = n_flagged * c_audit + (1 - p_low) * erg_low * c_fn + (1 - p_high) * erg_high * c_fn
 
+        # Breakeven condition (9th round, requested): I2-SPLIT vs AUDIT-ALL(true) reduces
+        # algebraically to a condition on p_high ALONE (the p_low term is identical in both
+        # policies and cancels): I2-SPLIT is cheaper iff
+        #   (1 - p_high) * erg_high * c_fn  >  n_high * (c_review - c_audit)
+        # i.e. iff  p_high < 1 - n_high*(c_review-c_audit)/(erg_high*c_fn).
+        # A reliability GAP existing (p_low > p_high) is necessary for this to be plausible
+        # but NOT sufficient by itself -- p_high must be low enough, relative to the
+        # review/audit cost gap and the error rate of the high-disagreement group, for
+        # routing it to REVIEW to pay for itself. This is verified per scenario below.
+        n_high = (~is_low_i2).sum()
+        p_high_breakeven = 1 - n_high * (c_review - c_audit) / (erg_high * c_fn)
+
         # RANDOM-SPLIT control: same audit/review split SIZE as I2-SPLIT, but WHICH
         # instances go to audit is a uniform random draw (ignores I2_hat). Computed as
         # an EXACT expectation (linearity of expectation over a hypergeometric draw),
@@ -201,9 +214,14 @@ if __name__ == "__main__":
         sav_vs_review = (cost_all_review - cost_i2split) / cost_all_review * 100
         sav_vs_random = (cost_random - cost_i2split) / cost_random * 100
         sav_vs_audit_true = (cost_audit_all_true - cost_i2split) / cost_audit_all_true * 100
+        i2split_wins = "I2-SPLIT wins" if p_high < p_high_breakeven else "AUDIT-ALL wins"
         print(f"{name:46s} {cost_all_review:12.1f} {cost_audit_all_opt:15.1f} {cost_audit_all_pes:15.1f} "
               f"{cost_audit_all_true:15.1f} {cost_random:14.1f} {cost_i2split:10.1f} "
               f"{sav_vs_review:13.2f}% {sav_vs_random:13.2f}% {sav_vs_audit_true:16.2f}%")
+        print(f"    -> breakeven p_high for this scenario = {p_high_breakeven:.5f}; "
+              f"actual p_high = {p_high:.2f} -> {i2split_wins} (a reliability gap p_low>p_high "
+              f"existing is necessary but NOT sufficient by itself; p_high must additionally be "
+              f"below this breakeven value)")
 
     print(f"\n(All costs are expected total cost over the {n_flagged} flagged JNU test instances, "
           f"arbitrary relative units. RANDOM-SPLIT and all AUDIT-ALL variants are exact "
