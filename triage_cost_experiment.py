@@ -21,11 +21,21 @@ pointed out that the median split used below (I2_hat <= median WITHIN the
 flagged, high-entropy subset) is NOT the same as full 3-of-3 base-learner
 UNANIMITY, and that calling it "models agree" vs. "models disagree" was
 imprecise. Verified directly against the data: of 2,929 flagged instances,
-only 43 are truly unanimous (I2_hat=0); the "lower-disagreement half"
-(1,997 instances) is 43 unanimous plus 1,954 with exactly 2-of-3 agreement,
-and the "higher-disagreement half" (932 instances) is 907 with 1-of-3
-agreement plus 25 with 0-of-3 (full disagreement). All labels and comments
-below now say "lower/higher-disagreement half", not "agree"/"disagree".
+only 43 are truly unanimous (I2_hat=0); the lower-disagreement group (1,997
+instances, 68.18% of flagged) is 43 unanimous plus 1,954 with exactly
+2-of-3 agreement, and the higher-disagreement group (932 instances, 31.82%
+of flagged) is 907 with 1-of-3 agreement plus 25 with 0-of-3 (full
+disagreement). All labels and comments below now say "lower/higher-
+disagreement GROUP" (not "half" -- the split is 68/32, not 50/50, so
+"half" is also inaccurate on its own terms), and never "agree"/"disagree".
+
+REVISION NOTE (8th round, follow-up): a second review found the "half"
+wording still present in two spots below and one closing sentence that
+generalized about "agreement" beyond the flagged, high-entropy subset this
+experiment covers. Both fixed: every reference below is now scoped
+explicitly to the flagged (high-entropy) instances, using "group", never
+"half" or a bare "agreement" claim that could be read as applying to the
+whole test set.
 
 Population: instances FLAGGED for intervention by I1_hat alone (I1_hat >
 tau1, the same "ambiguous signal" criterion a single-score policy would
@@ -43,9 +53,10 @@ Policies compared, all applied to the SAME flagged set (I1_hat > tau1):
                     condition isolating whether I2_hat's specific groupings
                     matter, not just "using cheaper audit sometimes".
   I2-SPLIT         : flagged instances with I2_hat <= tau2 (lower-disagreement
-                    half, mostly 2-of-3 agreement) -> AUDIT (cost C_audit,
-                    succeeds with probability p_audit_low); flagged instances
-                    with I2_hat > tau2 (higher-disagreement half, 1-of-3 or
+                    group, 68.18% of flagged, mostly 2-of-3 agreement) ->
+                    AUDIT (cost C_audit, succeeds with probability
+                    p_audit_low); flagged instances with I2_hat > tau2
+                    (higher-disagreement group, 31.82% of flagged, 1-of-3 or
                     0-of-3 agreement) -> REVIEW (cost C_review, always
                     resolves).
 For AUDIT, if it does not succeed (probability 1-p_audit_*), the case is
@@ -126,20 +137,27 @@ if __name__ == "__main__":
     n_unanimous_flagged = (vote_dis_flagged == 0).sum()
     print(f"Within flagged set: true unanimity (I2_hat=0, 3/3 agree) = {n_unanimous_flagged} of {n_flagged} "
           f"({n_unanimous_flagged/n_flagged*100:.1f}%) -- most flagged instances are NOT unanimous either way.")
-    print(f"Within flagged set: {is_low_i2.sum()} have I2_hat <= median (lower-disagreement half: "
-          f"mostly 2-of-3 agreement, only {n_unanimous_flagged} of these are truly unanimous), "
-          f"{(~is_low_i2).sum()} have I2_hat > median (higher-disagreement half: 1-of-3 or 0-of-3 agreement)")
-    print(f"  Error rate | lower-disagreement half (candidates for cheap audit): {errors_flagged[is_low_i2].mean()*100:.1f}%")
-    print(f"  Error rate | higher-disagreement half (routed to full review):     {errors_flagged[~is_low_i2].mean()*100:.1f}%")
-    print(f"  For reference, over the FULL test set: unanimous (3/3) error rate = "
-          f"{errors[vote_dis==0].mean()*100:.1f}% (N={int((vote_dis==0).sum())}), "
-          f"non-unanimous error rate = {errors[vote_dis>0].mean()*100:.1f}% (N={int((vote_dis>0).sum())})")
+    pct_low = is_low_i2.sum() / n_flagged * 100
+    pct_high = (~is_low_i2).sum() / n_flagged * 100
+    print(f"Within flagged set: {is_low_i2.sum()} ({pct_low:.2f}%) are in the lower-disagreement "
+          f"group (I2_hat <= median: mostly 2-of-3 agreement, only {n_unanimous_flagged} of these "
+          f"are truly unanimous), {(~is_low_i2).sum()} ({pct_high:.2f}%) are in the higher-"
+          f"disagreement group (I2_hat > median: 1-of-3 or 0-of-3 agreement). These are NOT halves "
+          f"of the flagged set (68/32 split, not 50/50), and this split describes only the "
+          f"high-entropy (flagged) instances, not the whole test set.")
+    print(f"  Error rate | lower-disagreement group, among flagged (candidates for cheap audit): {errors_flagged[is_low_i2].mean()*100:.1f}%")
+    print(f"  Error rate | higher-disagreement group, among flagged (routed to full review):      {errors_flagged[~is_low_i2].mean()*100:.1f}%")
+    print(f"  For reference, over the FULL test set (not just flagged instances): unanimous (3/3) "
+          f"error rate = {errors[vote_dis==0].mean()*100:.1f}% (N={int((vote_dis==0).sum())}), "
+          f"non-unanimous error rate = {errors[vote_dis>0].mean()*100:.1f}% (N={int((vote_dis>0).sum())}). "
+          f"Do not read the flagged-subset numbers above as a claim about agreement/disagreement "
+          f"in general -- they describe only the high-entropy instances flagged for intervention.")
 
     scenarios = [
         # (name, C_review, C_audit, C_FN, p_audit_success_low_I2, p_audit_success_high_I2)
-        ("S1: audit equally reliable in both I2 halves",     5, 1, 15, 0.90, 0.90),
-        ("S2: audit much less reliable in high-I2 half",     5, 1, 15, 0.90, 0.30),
-        ("S3: same as S2, MORE reliable in low-I2 half too", 5, 1, 15, 0.95, 0.30),
+        ("S1: audit equally reliable in both I2 groups",     5, 1, 15, 0.90, 0.90),
+        ("S2: audit much less reliable in high-I2 group",     5, 1, 15, 0.90, 0.30),
+        ("S3: same as S2, MORE reliable in low-I2 group too", 5, 1, 15, 0.95, 0.30),
         ("S4: no reliability gap (control)",                 5, 1, 15, 0.70, 0.70),
     ]
 
@@ -164,8 +182,8 @@ if __name__ == "__main__":
         #     bracket of the best/worst case if reliability did not depend on I2_hat.
         #   (true): the fair, scenario-consistent comparator -- audit EVERYONE, but each
         #     instance keeps its OWN group's true reliability (p_low for the low-disagreement
-        #     half, p_high for the high-disagreement half). This directly answers "is it
-        #     worth reserving the high-disagreement half for expensive REVIEW instead of
+        #     group, p_high for the high-disagreement group). This directly answers "is it
+        #     worth reserving the high-disagreement group for expensive REVIEW instead of
         #     also just auditing it", using the scenario's own numbers, not a uniform guess.
         cost_audit_all_opt = n_flagged * c_audit + (1 - p_low) * errors_flagged.sum() * c_fn
         cost_audit_all_pes = n_flagged * c_audit + (1 - p_high) * errors_flagged.sum() * c_fn

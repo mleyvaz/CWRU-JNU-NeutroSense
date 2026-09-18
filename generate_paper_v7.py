@@ -37,8 +37,9 @@ arbitrary order) and an oracle joint (I1-hat AND I2-hat) decision-rule test
 an exact tie-corrected frontier instead of a coarser threshold grid, which
 had made the joint rule look slightly worse than I1-hat alone by a pure
 grid-resolution artifact) that improves on I1-hat alone by a technically
-nonzero but practically negligible margin (AURC 0.39150 vs 0.39154) -- an
-honest near-null result on whether the neutrosophic multi-axis framing adds
+nonzero margin (AURC 0.391497 vs 0.391543) whose operational relevance has
+not been demonstrated -- an honest near-null result on whether the
+neutrosophic multi-axis framing adds
 quantitative value beyond conventional entropy; added multi-condition
 robustness checks holding out every available load/speed in turn, not just
 one (pipeline_multicondition.py); added JNU balanced accuracy, macro-F1 and
@@ -278,8 +279,9 @@ body(doc, (
     "we identify and correct a file-to-class mapping error in the CWRU benchmark itself, present in "
     "the pipeline before this study and undetected through several earlier correction rounds, in "
     "which two of the four nominal classes were actually the same physical fault recorded at "
-    "different sampling rates; correcting it raises CWRU accuracy to 100.00% and changes its role "
-    "in the study from a source of uncertainty-decomposition evidence to a positive control. Third, "
+    "different sampling rates; correcting it raises CWRU accuracy to 100.00% on three of its four "
+    "held-out loads (92.27% on the fourth, Section 4.2) and changes its role in the study from a "
+    "source of uncertainty-decomposition evidence to a mostly-positive control. Third, "
     "we evaluate the pipeline under a leave-one-condition-out protocol, extended here to hold out "
     "every available load (CWRU) or speed (JNU) in turn rather than a single one, correcting a "
     "window-level data-leakage issue present in earlier versions of this pipeline and showing that "
@@ -735,8 +737,8 @@ body(doc, (
 
 heading(doc, "4.4. Selective Risk-Coverage Analysis and Baseline Comparison", level=2)
 body(doc, (
-    "This analysis applies to JNU only (CWRU has no errors to trade off against coverage, Section "
-    "4.1). Figure 5 shows the standard selective-classification risk-coverage curve (Geifman and "
+    "This analysis applies to JNU only (CWRU's main 3 HP fold has no errors to trade off against "
+    "coverage, Section 4.1). Figure 5 shows the standard selective-classification risk-coverage curve (Geifman and "
     "El-Yaniv [10]): risk (error rate among accepted instances) as a function of coverage, for five "
     "candidate selectors, each accepting instances in order of increasing uncertainty. An earlier "
     "version of this analysis plotted accuracy and coverage separately against a threshold tau and "
@@ -779,12 +781,19 @@ body(doc, (
     "coarser quantile grid), then took the pointwise minimum across the four curves as the joint "
     "rule's own frontier -- an oracle upper bound on what any AND-rule over these two axes could "
     "achieve on this test set, computed on an identical footing to the single-score baselines. This "
-    "gives AURC=0.39150, against 0.39154 for I1-hat alone: a difference of 0.00005 (about 0.01% "
-    "relative), with the joint frontier strictly better than I1-hat alone at only 514 of 5,859 "
-    "coverage levels and never worse (an envelope over a superset of rules cannot underperform any "
-    "single member of that set, I1-hat alone included). We did not run a significance test on this "
-    "gap and do not claim it is distinguishable from zero; we report it as: technically nonzero and "
-    "in the expected direction, but of no practical magnitude. An earlier version of this analysis, "
+    "gives AURC=0.391497, against 0.391543 for I1-hat alone: a difference of 0.000046 (about 0.01% "
+    "relative; both figures and the coverage count below are printed directly by "
+    "joint_decision_rule_jnu.py, not computed separately), with the joint frontier strictly better "
+    "than I1-hat alone at only 514 of 5,859 coverage levels and never worse (an envelope over a "
+    "superset of rules cannot underperform any single member of that set, I1-hat alone included). "
+    "This oracle frontier selects its best-performing branch using the same test set's own errors, "
+    "making it a retrospective, optimistic upper bound rather than a policy validated for "
+    "deployment on unseen data -- unlike every other threshold in this paper, which is fixed before "
+    "looking at outcomes. We did not run a significance test on this "
+    "gap and do not claim it is distinguishable from zero; we report it as: the aggregate AURC "
+    "improvement is very small (0.000046), and we have not evaluated operating costs or a minimum "
+    "difference we would consider meaningful, so its operational relevance remains undemonstrated "
+    "rather than ruled out. An earlier version of this analysis, "
     "using a coarser threshold grid for the joint search than the exact method used for the single-"
     "score curves, had reported an apparent (and, on inspection, purely numerical) AURC of 0.3923, "
     "i.e. slightly worse than I1-hat alone -- a comparison invalidated by the grid mismatch itself "
@@ -792,8 +801,8 @@ body(doc, (
     "ensemble-vs-LR-alone finding above, this directly bears on what the neutrosophic framing "
     "contributes here: the four indicators are computed with entirely conventional tools (top-two "
     "ensemble probabilities, Shannon entropy, vote disagreement), and neither a linear combination "
-    "nor an oracle-optimal joint threshold rule over them yields a practically meaningful "
-    "improvement over the single best conventional score (entropy) on this benchmark. What the "
+    "nor an oracle-optimal joint threshold rule over them has a demonstrated operational advantage "
+    "over the single best conventional score (entropy) on this benchmark. What the "
     "framing offers, on the present evidence, is an organizational and interpretive structure -- "
     "separating confidence magnitude, competing-class evidence, and two forms of indeterminacy for "
     "diagnostic purposes (Section 4.5's hidden-risk zone remains informative as a qualitative flag "
@@ -810,10 +819,10 @@ table_row(t3b.rows[0], ["Selector", "AURC", "Accuracy @ 50% coverage"], bold=Tru
 d3b = [
     ["Max confidence (T-hat)", "0.4050", "53.40%"],
     ["Margin (T-hat - F-hat)", "0.4220", "50.32%"],
-    ["I1-hat: predictive entropy", "0.39154", "55.82%"],
+    ["I1-hat: predictive entropy", "0.391543", "55.82%"],
     ["I2-hat: decision disagreement", "0.4452", "52.09%"],
     ["I1-hat + I2-hat (linear combination)", "0.3968", "55.58%"],
-    ["I1-hat AND I2-hat (exact oracle joint rule, best case)", "0.39150", "55.82%"],
+    ["I1-hat AND I2-hat (exact oracle joint rule, best case)", "0.391497", "55.82%"],
 ]
 for i, row in enumerate(d3b): table_row(t3b.rows[i+1], row)
 doc.add_paragraph()
@@ -822,8 +831,8 @@ caption(doc, "Figure 5. Selective risk-coverage curves on JNU: I1-hat, I2-hat, m
 
 heading(doc, "4.5. Decision Disagreement (I2-hat)", level=2)
 body(doc, (
-    "This analysis applies to JNU only; CWRU has zero errors (Section 4.1), so partial correlations "
-    "involving error are mathematically undefined there (no error variance for any indicator to "
+    "This analysis applies to JNU only; CWRU's main 3 HP fold has zero errors (Section 4.1), so "
+    "partial correlations involving error are mathematically undefined there (no error variance for any indicator to "
     "explain). Any non-empty CWRU subgroup's error rate is simply zero, not undefined; only a "
     "genuinely empty subgroup (zero instances) would give an undefined rate. We evaluated I2-hat "
     "(vote disagreement among RF, "
@@ -862,9 +871,11 @@ body(doc, (
     "the 1,612 where base learners agree show 28.2% error, while the 1,318 where they disagree show "
     "63.7% error -- a substantial gap, directionally consistent with I2-hat's raw correlation "
     "(Table 2) even though its partial contribution beyond T-hat/F-hat/I1-hat is not significant "
-    "(Table 4). On CWRU this comparison cannot be run at all: with zero errors overall, there is no "
-    "error rate to compare between agreeing and disagreeing low-entropy instances, whatever their "
-    "counts. We regard the JNU finding as informative in its own right, not as one half of a "
+    "(Table 4). On CWRU this comparison cannot be run at all on the main 3 HP fold: among low-"
+    "entropy instances, the disagreeing group is empty (N=0, undefined rate), and the agreeing "
+    "group (N=475) has a well-defined error rate of exactly 0% -- there is no disagreeing group to "
+    "compare it against, not an undefined rate on either side. We regard the JNU finding as "
+    "informative in its own right, not as one half of a "
     "cross-dataset contrast, since CWRU under the corrected mapping no longer provides a comparison "
     "case for this analysis."
 ))
@@ -994,13 +1005,17 @@ body(doc, (
     "outperforms every indicator derived from the full three-model ensemble (lower AURC than "
     "I1-hat), and an oracle joint decision rule over I1-hat and I2-hat -- an exact, tie-corrected "
     "frontier computed at every achievable coverage level, an upper bound on what any such joint "
-    "rule could achieve on this test set -- improves on I1-hat used alone by an amount (AURC 0.39150 "
-    "vs. 0.39154) too small to carry any practical weight. We take this seriously rather than explain "
+    "rule could achieve on this test set -- improves on I1-hat used alone by an amount (AURC "
+    "0.391497 vs. 0.391543) small enough that its operational relevance has not been demonstrated; "
+    "we did not evaluate operating costs or specify a minimum difference we would consider "
+    "meaningful, so we do not claim the gain has no practical use, only that none has been shown. "
+    "We take this seriously rather than explain "
     "it away: the four indicators are computed with entirely conventional tools (the ensemble's "
     "top-two class probabilities, Shannon entropy of its averaged distribution, and base-learner "
     "vote disagreement), training and combination use no rule specific to neutrosophic logic, and on "
     "the evidence in this paper, neither a linear nor an oracle-optimal joint combination of the two "
-    "indeterminacy axes meaningfully beats the single best conventional score. What the framing "
+    "indeterminacy axes has a demonstrated operational advantage over the single best conventional "
+    "score. What the framing "
     "offers here is an "
     "organizational and diagnostic structure -- separating confidence magnitude, competing-class "
     "evidence, and two qualitatively different sources of indeterminacy for interpretation, and "
@@ -1088,8 +1103,9 @@ body(doc, (
     "stratified comparison and a linear partial-correlation test can disagree about the same "
     "underlying pattern. We further tested an oracle joint decision rule over I1-hat and I2-hat "
     "(an exact tie-corrected frontier, the best case across every achievable coverage level) and "
-    "found it improves on I1-hat used alone by a margin too small to be of practical use (AURC "
-    "0.39150 vs. 0.39154) -- evidence that treating aleatoric and epistemic indeterminacy as two "
+    "found it improves on I1-hat used alone by a margin (AURC 0.391497 vs. 0.391543) small enough "
+    "that we have not demonstrated its operational relevance -- evidence that treating aleatoric "
+    "and epistemic indeterminacy as two "
     "separate decision axes does not yet demonstrate a practically meaningful selective-"
     "classification advantage on this benchmark, beyond what predictive entropy alone already "
     "provides. We could "
